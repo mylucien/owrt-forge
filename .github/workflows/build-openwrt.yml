@@ -1,0 +1,246 @@
+name: Build OpenWrt
+
+on:
+  repository_dispatch:
+    types: [build-openwrt]
+
+env:
+  # Worker 部署后的访问地址，例如 https://your-worker.your-subdomain.workers.dev
+  WORKER_URL: ${{ vars.WORKER_URL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 拉取完整配置
+        id: config
+        run: |
+          set -e
+          BUILD_ID="${{ fromJson(github.event.client_payload).build_id }}"
+          curl -sf -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+            "$WORKER_URL/api/builds/$BUILD_ID/config" -o config.json
+
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+          echo "template_id=$(jq -r '.template_id // ""' config.json)" >> "$GITHUB_OUTPUT"
+          echo "trigger_type=$(jq -r '.trigger_type // "manual"' config.json)" >> "$GITHUB_OUTPUT"
+          HAS=$(jq -r 'if .dotconfig_snapshot and .dotconfig_snapshot != "" then "true" else "false" end' config.json)
+          echo "has_dotconfig=$HAS" >> "$GITHUB_OUTPUT"
+
+      - name: 上报：已开始
+        run: |
+          curl -s -X POST "$WORKER_URL/api/report" \
+            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"running\"}"
+
+      - name: 安装基础依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: 克隆主源码
+        run: |
+          set -e
+          git clone --depth 1 -b "$(jq -r .branch config.json)" \
+            "$(jq -r .repo_url config.json)" openwrt
+
+      - name: 自定义脚本①（feeds update 之前）
+        run: |
+          jq -r .diy_script_1 config.json > diy1.sh
+          chmod +x diy1.sh
+          cd openwrt && bash ../diy1.sh
+
+      - name: feeds update
+        run: cd openwrt && ./scripts/feeds update -a
+
+      - name: 克隆插件源码（支持整仓 / 稀疏克隆）
+        run: |
+          set -e
+          function git_sparse_clone() {
+            branch="$1" repourl="$2" && shift 2
+            git clone --depth=1 -b "$branch" --single-branch \
+              --filter=blob:none --sparse "$repourl"
+            repodir=$(basename "$repourl")
+            cd "$repodir" && git sparse-checkout set "$@"
+            mv -f "$@" ../package/
+            cd .. && rm -rf "$repodir"
+          }
+          mkdir -p openwrt/package
+          cd openwrt
+          jq -c '.plugins[]' ../config.json | while read -r p; do
+            url=$(echo "$p" | jq -r .git_url)
+            if [ "$(echo "$p" | jq -r .sparse)" = "true" ]; then
+              dirs=$(echo "$p" | jq -r '.dirs[]' | tr '\n' ' ')
+              git_sparse_clone "$(echo "$p" | jq -r .branch)" "$url" $dirs
+            else
+              name=$(echo "$p" | jq -r .name)
+              git clone --depth 1 "$url" "package/$name"
+            fi
+          done
+
+      - name: feeds install
+        run: cd openwrt && ./scripts/feeds install -a
+
+      - name: 自定义脚本②（feeds install 之后）
+        run: |
+          jq -r .diy_script_2 config.json > diy2.sh
+          chmod +x diy2.sh
+          cd openwrt && bash ../diy2.sh
+
+      - name: 写入底稿 .config（如有）
+        run: |
+          set -e
+          if [ "${{ steps.config.outputs.has_dotconfig }}" = "true" ]; then
+            jq -r .dotconfig_snapshot config.json > openwrt/.config
+            cd openwrt && make defconfig
+          fi
+
+      # ── 手动触发：ttyd menuconfig ────────────────────────────────
+      - name: 注入脚本 + 启动 ttyd
+        if: steps.config.outputs.trigger_type == 'manual'
+        id: webterm
+        env:
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
+          TTYD_USER: ${{ secrets.TTYD_USER }}
+          TTYD_PASS: ${{ secrets.TTYD_PASS }}
+          # 修复：将局部变量提升为环境变量，push-config / menuconfig-session.sh
+          # 作为独立子进程运行，无法继承 bash 局部变量，必须通过环境变量传递
+          BUILD_ID: ${{ steps.config.outputs.build_id }}
+          OPENWRT_DIR: ${{ github.workspace }}/openwrt
+        run: |
+          set -eo pipefail
+
+          # push-config：menuconfig 保存退出后调用，把最终 .config 推送回 Worker
+          # BUILD_ID / WORKER_URL / REPORT_TOKEN / OPENWRT_DIR 均通过 env: 块注入为环境变量，
+          # 单引号 heredoc 阻止写入阶段展开，子进程运行时才读取环境变量。
+          # 不传 template_id，Worker 从 build 记录中读取，防止被篡改。
+          sudo tee /usr/local/bin/push-config > /dev/null << 'PUSH_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+CONTENT=$(cat "$OPENWRT_DIR/.config")
+curl -s -X POST "$WORKER_URL/api/report/dotconfig" \
+  -H "X-Report-Token: $REPORT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"build_id\":\"$BUILD_ID\",\"content\":$(jq -Rs . <<< "$CONTENT")}"
+echo "✅ .config 已推送"
+PUSH_SCRIPT
+          sudo chmod +x /usr/local/bin/push-config
+
+          # menuconfig-session：ttyd 启动后跑的会话脚本，用户打开网页第一屏即进入 ncurses 配置界面
+          # OPENWRT_DIR 通过环境变量继承，单引号 heredoc 阻止写入阶段展开
+          cat > /tmp/menuconfig-session.sh << 'SESSION_SCRIPT'
+#!/usr/bin/env bash
+# 不使用 set -euo pipefail：make menuconfig 在 "Exit without saving" 时返回 1，
+# 我们需要脚本继续执行，而非被终止
+cd "$OPENWRT_DIR"
+BEFORE=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
+make menuconfig || true
+AFTER=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
+if [ "$AFTER" -gt "$BEFORE" ]; then
+  echo ""
+  echo "✅ 保存完成，正在推送配置..."
+  push-config
+  touch /tmp/menuconfig-done
+  echo "🚀 配置已推送，即将开始编译，可以关闭此窗口"
+else
+  echo ""
+  echo "⚠️ .config 未修改（Exit without saving），未推送配置。"
+  echo "   等待用户重新连接或任务超时"
+fi
+sleep 3
+SESSION_SCRIPT
+          chmod +x /tmp/menuconfig-session.sh
+
+          # 修复：分两步下载（先到临时文件再 sudo mv），pipefail 已在 set -eo pipefail 中开启，
+          # 但管道写入 /usr/local/bin 需要 sudo，拆分后错误更易感知
+          curl -fsSL https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+            -o /tmp/ttyd_bin
+          sudo install -m 0755 /tmp/ttyd_bin /usr/local/bin/ttyd
+          ttyd --port 7681 \
+               --credential "${TTYD_USER}:${TTYD_PASS}" \
+               --once \
+               /tmp/menuconfig-session.sh &
+
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o /tmp/cloudflared_bin
+          sudo install -m 0755 /tmp/cloudflared_bin /usr/local/bin/cloudflared
+          cloudflared tunnel --url http://localhost:7681 \
+            --no-autoupdate > /tmp/cf.log 2>&1 &
+
+          URL=""
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+
+          if [ -z "$URL" ]; then
+            echo "未能在 60 秒内获取 cloudflared 隧道地址" >&2
+            cat /tmp/cf.log >&2
+            exit 1
+          fi
+
+          AUTH_URL="https://${TTYD_USER}:${TTYD_PASS}@${URL#https://}"
+          echo "web_url=${AUTH_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: 上报：Web 终端地址
+        if: steps.config.outputs.trigger_type == 'manual'
+        run: |
+          curl -s -X POST "$WORKER_URL/api/report" \
+            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"menuconfig\",\"web_url\":\"${{ steps.webterm.outputs.web_url }}\"}"
+
+      - name: 等待 menuconfig 完成（超时 30 分钟）
+        if: steps.config.outputs.trigger_type == 'manual'
+        run: |
+          TIMEOUT=1800
+          ELAPSED=0
+          while [ ! -f /tmp/menuconfig-done ]; do
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              curl -s -X POST "$WORKER_URL/api/report" \
+                -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"failed\",\"reason\":\"menuconfig_timeout\"}"
+              exit 1
+            fi
+          done
+      # ── ttyd 结束 ────────────────────────────────────────────────
+
+      - name: 上报：开始编译
+        run: |
+          curl -s -X POST "$WORKER_URL/api/report" \
+            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"compiling\"}"
+
+      - name: 编译
+        run: |
+          cd openwrt
+          make -j$(nproc) || make -j1 V=s
+
+      - name: 发布 Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ steps.config.outputs.build_id }}
+          files: openwrt/bin/targets/**/*
+
+      - name: 上报：完成
+        if: always()
+        run: |
+          BUILD_ID="${{ steps.config.outputs.build_id }}"
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="success"
+            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/tag/build-${BUILD_ID}"
+          else
+            STATUS="failed"
+            DOWNLOAD_URL=""
+          fi
+          curl -s -X POST "$WORKER_URL/api/report" \
+            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"build_id\":\"${BUILD_ID}\",\"status\":\"${STATUS}\",\"download_url\":\"${DOWNLOAD_URL}\"}"
