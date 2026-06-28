@@ -116,41 +116,41 @@ jobs:
           # 单引号 heredoc 阻止写入阶段展开，子进程运行时才读取环境变量。
           # 不传 template_id，Worker 从 build 记录中读取，防止被篡改。
           sudo tee /usr/local/bin/push-config > /dev/null << 'PUSH_SCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-CONTENT=$(cat "$OPENWRT_DIR/.config")
-curl -s -X POST "$WORKER_URL/api/report/dotconfig" \
-  -H "X-Report-Token: $REPORT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"build_id\":\"$BUILD_ID\",\"content\":$(jq -Rs . <<< "$CONTENT")}"
-echo "✅ .config 已推送"
-PUSH_SCRIPT
-          sudo chmod +x /usr/local/bin/push-config
+          #!/usr/bin/env bash
+          set -euo pipefail
+          CONTENT=$(cat "$OPENWRT_DIR/.config")
+          curl -s -X POST "$WORKER_URL/api/report/dotconfig" \
+            -H "X-Report-Token: $REPORT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"build_id\":\"$BUILD_ID\",\"content\":$(jq -Rs . <<< "$CONTENT")}"
+          echo "✅ .config 已推送"
+          PUSH_SCRIPT
+                    sudo chmod +x /usr/local/bin/push-config
 
           # menuconfig-session：ttyd 启动后跑的会话脚本，用户打开网页第一屏即进入 ncurses 配置界面
           # OPENWRT_DIR 通过环境变量继承，单引号 heredoc 阻止写入阶段展开
           cat > /tmp/menuconfig-session.sh << 'SESSION_SCRIPT'
-#!/usr/bin/env bash
-# 不使用 set -euo pipefail：make menuconfig 在 "Exit without saving" 时返回 1，
-# 我们需要脚本继续执行，而非被终止
-cd "$OPENWRT_DIR"
-BEFORE=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
-make menuconfig || true
-AFTER=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
-if [ "$AFTER" -gt "$BEFORE" ]; then
-  echo ""
-  echo "✅ 保存完成，正在推送配置..."
-  push-config
-  touch /tmp/menuconfig-done
-  echo "🚀 配置已推送，即将开始编译，可以关闭此窗口"
-else
-  echo ""
-  echo "⚠️ .config 未修改（Exit without saving），未推送配置。"
-  echo "   等待用户重新连接或任务超时"
-fi
-sleep 3
-SESSION_SCRIPT
-          chmod +x /tmp/menuconfig-session.sh
+          #!/usr/bin/env bash
+          # 不使用 set -euo pipefail：make menuconfig 在 "Exit without saving" 时返回 1，
+          # 我们需要脚本继续执行，而非被终止
+          cd "$OPENWRT_DIR"
+          BEFORE=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
+          make menuconfig || true
+          AFTER=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
+          if [ "$AFTER" -gt "$BEFORE" ]; then
+            echo ""
+            echo "✅ 保存完成，正在推送配置..."
+            push-config
+            touch /tmp/menuconfig-done
+            echo "🚀 配置已推送，即将开始编译，可以关闭此窗口"
+          else
+            echo ""
+            echo "⚠️ .config 未修改（Exit without saving），未推送配置。"
+            echo "   等待用户重新连接或任务超时"
+          fi
+          sleep 3
+          SESSION_SCRIPT
+                    chmod +x /tmp/menuconfig-session.sh
 
           # 修复：分两步下载（先到临时文件再 sudo mv），pipefail 已在 set -eo pipefail 中开启，
           # 但管道写入 /usr/local/bin 需要 sudo，拆分后错误更易感知
