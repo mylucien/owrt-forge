@@ -4,6 +4,9 @@ on:
   repository_dispatch:
     types: [build-openwrt]
 
+# 修复1：WORKER_URL 加引号，避免 https:// 中的冒号被 YAML 解析器误判
+# 修复2：改用 secrets.WORKER_URL（推荐）或保持 vars.WORKER_URL，
+#        但必须加引号；此处保留 vars 以兼容原配置
 env:
   WORKER_URL: "${{ vars.WORKER_URL }}"
 
@@ -123,6 +126,8 @@ jobs:
           sudo chmod +x /usr/local/bin/push-config
 
           # menuconfig-session：ttyd 会话入口
+          # 未保存（Exit without saving）：脚本退出，ttyd 等待下次连接重新执行
+          # 已保存（Save & Exit）：推送配置，kill ttyd，推进编译
           cat > /tmp/menuconfig-session.sh << 'SESSION_SCRIPT'
           #!/usr/bin/env bash
           cd "$OPENWRT_DIR"
@@ -134,17 +139,17 @@ jobs:
             echo "✅ 保存完成，正在推送配置..."
             push-config
             touch /tmp/menuconfig-done
+            pkill -f "ttyd --port 7681" || true
             echo "🚀 配置已推送，即将开始编译，可以关闭此窗口"
           else
             echo ""
-            echo "⚠️ .config 未修改（Exit without saving），未推送配置。"
-            echo "   等待用户重新连接或任务超时"
+            echo "⚠️ 未保存，可重新连接继续配置"
+            sleep 3
           fi
-          sleep 3
           SESSION_SCRIPT
           chmod +x /tmp/menuconfig-session.sh
 
-          # 修复3：锁定 ttyd 版本号，避免 latest 重定向偶发失败
+          # 锁定 ttyd 版本号，避免 latest 重定向偶发失败
           TTYD_VER="1.7.7"
           curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VER}/ttyd.x86_64" \
             -o /tmp/ttyd_bin
@@ -152,7 +157,8 @@ jobs:
 
           ttyd --port 7681 \
                --credential "${TTYD_USER}:${TTYD_PASS}" \
-               --once \
+               --max-clients 1 \
+               --writable \
                /tmp/menuconfig-session.sh &
 
           # 修复3：同样锁定 cloudflared 版本
