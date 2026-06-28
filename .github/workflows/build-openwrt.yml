@@ -105,6 +105,7 @@ jobs:
         if: steps.config.outputs.trigger_type == 'manual'
         id: webterm
         env:
+          WORKER_URL: "${{ vars.WORKER_URL }}"
           REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
           TTYD_USER: "${{ secrets.TTYD_USER }}"
           TTYD_PASS: "${{ secrets.TTYD_PASS }}"
@@ -118,6 +119,10 @@ jobs:
           sudo tee /usr/local/bin/push-config > /dev/null << 'PUSH_SCRIPT'
           #!/usr/bin/env bash
           set -euo pipefail
+          : "${WORKER_URL:?WORKER_URL 未设置}"
+          : "${REPORT_TOKEN:?REPORT_TOKEN 未设置}"
+          : "${BUILD_ID:?BUILD_ID 未设置}"
+          : "${OPENWRT_DIR:?OPENWRT_DIR 未设置}"
           CONTENT=$(cat "$OPENWRT_DIR/.config")
           curl -sf -X POST "$WORKER_URL/api/report/dotconfig" \
             -H "X-Report-Token: $REPORT_TOKEN" \
