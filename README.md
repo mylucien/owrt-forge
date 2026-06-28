@@ -88,9 +88,16 @@ CREATE TABLE IF NOT EXISTS builds (
   created_at INTEGER,
   updated_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS system_config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 ```
 
-确认三张表（`templates`、`dotconfig_history`、`builds`）都建好了。
+确认四张表（`templates`、`dotconfig_history`、`builds`、`system_config`）都建好了。
+
+> `system_config` 是新增的配置表，登录密码、GitHub 仓库/Token、Worker URL、上报密钥等敏感配置都存在这张表里（除密码哈希外均加密存储），不再需要在 Cloudflare 后台逐项手填环境变量，见 3.4 节。
 
 ### 3.2 新建 Worker，粘贴代码
 
@@ -105,19 +112,15 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 - **变量名称**必须填 `DB`（worker.js 里硬编码用的就是 `env.DB`，改了名字就连不上数据库）
 - 选择 3.1 节建的那个数据库
 
-### 3.4 配置环境变量 / Secrets
+### 3.4 配置唯一一个 Secret：`MASTER_KEY`
 
-同样在 Settings → Variables and Secrets，添加以下几个，**全部勾选"加密"（Secret）**：
+在 Settings → Variables and Secrets 里只需要添加一个，**勾选"加密"（Secret）**：
 
 | 变量名 | 值 | 说明 |
 |---|---|---|
-| `LOGIN_PASSWORD` | 自己定的密码 | 网页登录密码 |
-| `SESSION_SECRET` | 一段随机字符串 | 给登录态签名用，跟密码无关，建议用密码生成器随便造一串 32 位以上的随机串 |
-| `GITHUB_TOKEN` | GitHub PAT | 要有权限对目标仓库发 dispatch 事件 |
-| `GITHUB_REPO` | `你的用户名/仓库名` | 比如 `yourname/openwrt-builds`，注意不带 `https://github.com/` 前缀 |
-| `REPORT_TOKEN` | 一段随机字符串 | workflow 上报状态时用的密钥，等下要原样填到 GitHub Actions Secrets 里，两边必须完全一致 |
+| `MASTER_KEY` | 一段随机字符串 | 用于加密 D1 里存的登录密码哈希、GitHub 仓库/Token、Worker URL、上报密钥，并派生登录态签名密钥。建议 32 位以上随机串，比如终端跑 `openssl rand -hex 32` |
 
-`SESSION_SECRET` 和 `REPORT_TOKEN` 随便生成两个不一样的长随机字符串就行，比如在终端跑 `openssl rand -hex 32`。
+登录密码、GitHub 仓库地址、GitHub PAT、Worker URL、`REPORT_TOKEN` 这些都**不需要**在 Cloudflare 后台手动配置了，全部改成第一次打开网页时在线填写（见 3.7 节），加密后存进 D1 的 `system_config` 表。`MASTER_KEY` 是唯一的密钥，丢失意味着 D1 里所有加密的配置都无法解密，需要清空 `system_config` 表重新走一遍初始化流程（详见第 5 节）。
 
 ### 3.5 把 workflow 放进 GitHub 仓库
 
@@ -129,27 +132,36 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 
 把 `build-openwrt.yml` 的内容整个放进去，提交。
 
-### 3.6 配置 GitHub 仓库的 Secrets 和 Variables
+### 3.6 配置 GitHub 仓库的 Secrets
 
-进该仓库 Settings → Secrets and variables → Actions：
-
-**Secrets** 标签下添加：
+进该仓库 Settings → Secrets and variables → Actions → **Secrets** 标签下添加：
 
 | Secret 名 | 值 |
 |---|---|
-| `REPORT_TOKEN` | 跟 3.4 节里 Worker 的 `REPORT_TOKEN` **完全一致** |
+| `REPORT_TOKEN` | 等网页"部署向导"生成后原样复制过来，见 3.7 节 |
 | `TTYD_USER` | 网页终端的登录用户名，自己定，比如 `admin` |
 | `TTYD_PASS` | 网页终端的登录密码，自己定，建议用随机串 |
 
-**Variables** 标签下添加：
-
-| Variable 名 | 值 |
-|---|---|
-| `WORKER_URL` | 你 Worker 的访问地址，形如 `https://openwrt-builder.yourname.workers.dev`，**不要带末尾斜杠** |
+GitHub 侧不再需要配置任何 **Variables**——原来的 `WORKER_URL` 现在由 Worker 在触发编译时自动下发，不用你手动维护。
 
 仓库自带的 `GITHUB_TOKEN`（用于发布 Release）不需要你手动配置，Actions 运行时会自动注入，只要仓库的 Actions 权限里"Workflow permissions"设置成至少有 "Read and write permissions" 即可（仓库 Settings → Actions → General → Workflow permissions）。
 
-### 3.7（可选）配置定时编译的 Cron Triggers
+### 3.7 网页端：系统初始化 + 部署向导
+
+前面几步做完后，打开 Worker 的访问地址，会看到"系统初始化"页面（因为 D1 里还没有任何密码记录）：
+
+1. **设置登录密码**：填两遍密码（至少 6 位），提交后自动登录，进入"部署向导"页
+2. **部署向导**填三项：
+   - **Worker URL**：默认已经填好当前网址，正常情况不用改；如果你的 Worker 配置了多个路由入口，确认这里填的是你希望编译流程上报回来的那个地址
+   - **GitHub 仓库**：格式 `owner/repo`，对应 3.5 节里放 workflow 的那个仓库
+   - **GitHub PAT**：3.2 节准备的那个 Token
+3. 点"保存并生成 REPORT_TOKEN"，页面会显示一个随机生成的 `REPORT_TOKEN`，**复制它**
+4. 回到 GitHub 仓库，按 3.6 节的方式把这个值粘贴进 `REPORT_TOKEN` 这个 Secret
+5. 网页上点"完成，进入主界面"——这个 token 之后不会再以明文形式展示，如果忘了复制或要轮换，去右上角 ⚙️ 设置菜单里点"重置 REPORT_TOKEN"重新生成一次（两边都要同步更新）
+
+至此部署全部完成，可以建模板触发编译了。
+
+### 3.8（可选）配置定时编译的 Cron Triggers
 
 如果你打算用定时编译功能，需要在 Worker 的 Settings → Triggers → Cron Triggers 里手动加 cron 表达式。
 
@@ -163,9 +175,11 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 >
 > 注意 Cloudflare Cron 的时间是 **UTC 时间**，换算成北京时间要 +8 小时。`0 2 * * *`（UTC 2:00）等于北京时间上午 10 点。
 
-### 3.8 部署完成，验证一下
+### 3.9 部署完成，验证一下
 
-打开 Worker 的访问地址，应该看到一个深色背景的登录页，输入 `LOGIN_PASSWORD` 能登进去，看到空的"编译模板"列表，就说明 Worker 和 D1 都通了。
+如果 3.7 节的初始化和向导都顺利走完，并且看到了空的"编译模板"列表，就说明 Worker、D1、GitHub 三边都通了。
+
+如果打开 Worker 地址后**没有**看到初始化页，而是直接报错或空白，通常是 D1 没绑定好（检查变量名是否为 `DB`）或 worker.js 粘贴时被截断了，见第 6 节排查。
 
 GitHub Actions 那边的连通性要等你真正触发一次编译才能验证，见下面第 4 节。
 
@@ -221,7 +235,7 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 
 之后到了设定的时间点，Cloudflare 会自动触发一次编译，跳过 menuconfig 直接用你选的版本编译完发布。
 
-> 别忘了第 3.7 节提到的：这里填的 cron 表达式要跟 Worker Cron Triggers 里加的那条**完全一致**才会被触发到。
+> 别忘了第 3.8 节提到的：这里填的 cron 表达式要跟 Worker Cron Triggers 里加的那条**完全一致**才会被触发到。
 
 ### 4.5 管理 `.config` 版本历史
 
@@ -248,33 +262,50 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 
 顶部导航"编译记录"，列出所有手动和定时触发过的任务，每条都有状态徽章和进度条，定时任务会标"定时"角标。失败、成功的任务都能在这里回溯。
 
+### 4.8 设置菜单（右上角 ⚙️）
+
+- **重新配置 GitHub 连接**：重新打开部署向导，可以改 Worker URL / GitHub 仓库 / GitHub PAT。GitHub PAT 输入框留空表示沿用原有 Token 不变。
+- **重置 REPORT_TOKEN**：生成一个新的上报密钥，旧的立即失效。重置后会弹窗显示新值，记得同步更新到 GitHub 仓库的 `REPORT_TOKEN` Secret，否则下次编译上报状态会失败（不影响编译本身，但页面看不到进度更新）。
+- **重置所有配置**（危险区域）：清空 D1 里 `system_config` 表的全部内容，回到最初的"系统初始化"页面，相当于推倒重来，模板和编译记录数据不受影响。
+- **退出登录**：清掉登录态 cookie，回到登录页。
+
 ---
 
 ## 5. 安全说明
 
 - 网页本身靠密码 + session cookie 保护，没有账号体系，适合自己一个人或小范围使用，不建议公开分享登录密码。
+- 登录密码以 PBKDF2 哈希存储（不可逆），GitHub 仓库地址/Token、Worker URL、`REPORT_TOKEN` 以 AES-GCM 加密存储在 D1 的 `system_config` 表里，解密密钥由 `MASTER_KEY` 派生，离开 Worker 进程（即没有这个 Secret）就无法解密。
+- **`MASTER_KEY` 丢失等于这些加密配置全部作废**：没有别的恢复办法，只能去 D1 控制台手动清空 `system_config` 表（`DELETE FROM system_config;`），重新走一遍 3.7 节的初始化流程。建议把 `MASTER_KEY` 这串随机字符串自己额外备份一份（比如存进密码管理器），避免误删 Cloudflare Secret 后被迫重新配置。
+- GitHub 侧现在只需要维护一个 `REPORT_TOKEN` Secret，不再需要任何 Variables——Worker URL 在每次触发编译时由 Worker 自动下发，不会写死在仓库配置里。
 - menuconfig 网页终端是通过 `cloudflared` 临时隧道（`*.trycloudflare.com`）暴露到公网的，靠 ttyd 的用户名密码（`TTYD_USER`/`TTYD_PASS`）做二次保护，没有密码的人即使猜到这个随机域名也进不去，但既然 URL 含密码，**别把触发后弹出的终端链接转发给不信任的人**。
 - 终端 session 设了 30 分钟超时，超时没保存退出会自动判失败，不会一直占着 Actions 资源。
-- `GITHUB_TOKEN`、`REPORT_TOKEN` 是两套完全独立的密钥，前者只用来发起编译，后者只用来给 workflow 回传状态，互相不能越权使用。
+- GitHub PAT、`REPORT_TOKEN` 是两套完全独立的密钥，前者只用来发起编译，后者只用来给 workflow 回传状态，互相不能越权使用。
 
 ---
 
 ## 6. 常见问题排查
 
-**登录页打不开 / 502**
-检查 Worker 是否绑定了 D1（变量名必须是 `DB`），以及 worker.js 是否完整粘贴没截断。
+**打开网址后报"服务器未配置 MASTER_KEY"或 502**
+检查 Worker 是否绑定了 D1（变量名必须是 `DB`）、是否配置了 `MASTER_KEY` 这个 Secret，以及 worker.js 是否完整粘贴没截断。
+
+**打开网址后报"no such table: system_config"之类的 SQL 错误**
+说明 D1 建表步骤漏了 `system_config` 这张表，回去 3.1 节把建表 SQL 重新跑一遍（`CREATE TABLE IF NOT EXISTS` 不会影响已有表，可以放心重复执行）。
 
 **密码对了但登录不进去**
-确认 `LOGIN_PASSWORD` 这个 Secret 是否真的保存成功了（有时候编辑完忘了点保存）。
+极少数情况是 `MASTER_KEY` 在初始化之后被改动过——`MASTER_KEY` 一旦变化，之前存的密码哈希虽然不受影响（哈希本身不加密），但后续登录态签名、GitHub 配置等会全部对不上，建议不要在初始化完成后随意改动这个 Secret。
 
-**点击"触发编译"后一直停在"排队中"不动**
+**登录后一直停在"部署向导"页面退不出去**
+说明 GitHub 仓库 / Token 还没填完整，或者填的格式不对（仓库要求 `owner/repo`，不能带 `https://github.com/` 前缀）。把这一步走完才能进主界面。
+
+**点击"触发编译"后一直停在"排队中"不动，或报错"GitHub / Worker URL 配置未完成"**
 说明 GitHub 那边没收到 dispatch 请求。检查：
-- `GITHUB_TOKEN` 权限是否够（需要能对目标仓库发 `repository_dispatch`）
-- `GITHUB_REPO` 格式是否正确（`owner/repo`，不要带 `https://github.com/`）
+- 部署向导里填的 GitHub PAT 权限是否够（需要能对目标仓库发 `repository_dispatch`）
+- 部署向导里填的 GitHub 仓库格式是否正确（`owner/repo`）
 - 该仓库是否真的有 `.github/workflows/build-openwrt.yml` 这个文件，且分支是仓库默认分支
+- 如果改过 GitHub PAT，确认走的是"重新配置 GitHub 连接"而不是直接去 GitHub 那边重新生成了 Token 但没同步更新到这边
 
 **进度卡在"准备"，终端窗口一直不出现**
-去 GitHub 仓库的 Actions 页面看那次 run 的实时日志，通常是源码 clone 太慢，或者某个插件仓库地址写错、`diy_script_1` 脚本报错导致后续步骤跑不到 ttyd 那一步。
+去 GitHub 仓库的 Actions 页面看那次 run 的实时日志，通常是源码 clone 太慢，或者某个插件仓库地址写错、`diy_script_1` 脚本报错导致后续步骤跑不到 ttyd 那一步。如果日志里 `curl` 请求 Worker 接口直接返回 401，大概率是 GitHub 仓库 Secrets 里的 `REPORT_TOKEN` 跟网页这边当前的值不一致（比如重置过 REPORT_TOKEN 后忘了同步），去设置菜单"重置 REPORT_TOKEN"重新生成一次，再去 GitHub 仓库更新对应 Secret。
 
 **终端弹出来了，但显示 401 / 打不开**
 检查 `TTYD_USER`/`TTYD_PASS` 是否正确配置在 GitHub 仓库的 Actions Secrets 里，必须两个都设置，并且跟 Worker 里没有关系（这两个密钥只存在于 GitHub Actions 那一侧）。
