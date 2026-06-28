@@ -113,7 +113,7 @@ jobs:
           OPENWRT_DIR: "${{ github.workspace }}/openwrt"
         run: |
           set -eo pipefail
-
+ 
           # push-config：menuconfig 保存退出后上传 .config 到 Worker
           # 单引号 heredoc 阻止写入阶段展开，运行时读取环境变量
           sudo tee /usr/local/bin/push-config > /dev/null << 'PUSH_SCRIPT'
@@ -124,10 +124,14 @@ jobs:
           : "${BUILD_ID:?BUILD_ID 未设置}"
           : "${OPENWRT_DIR:?OPENWRT_DIR 未设置}"
           CONTENT=$(cat "$OPENWRT_DIR/.config")
+          PAYLOAD=$(jq -n \
+            --arg build_id "$BUILD_ID" \
+            --arg content  "$CONTENT"  \
+            '{build_id: $build_id, content: $content}')
           curl -sf -X POST "$WORKER_URL/api/report/dotconfig" \
             -H "X-Report-Token: $REPORT_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"build_id\":\"$BUILD_ID\",\"content\":$(jq -Rs . <<< "$CONTENT")}"
+            -d "$PAYLOAD"
           echo "✅ .config 已推送"
           PUSH_SCRIPT
           sudo chmod +x /usr/local/bin/push-config
