@@ -231,12 +231,29 @@ jobs:
           cd openwrt
           make -j$(nproc) || make -j1 V=s
 
+      - name: 打包产物
+        run: |
+          cd openwrt/bin/targets
+          find . -type d -mindepth 2 -maxdepth 2 | while read dir; do
+            name=$(echo "$dir" | tr '/' '-' | sed 's/^-//')
+            tar czf "../../../${name}-packages.tar.gz" -C "$dir" .
+          done
+          cd ${{ github.workspace }}
+          # 只保留 rootfs / sysupgrade 镜像 + 打包的 packages
+          find openwrt/bin/targets -name "*.img.gz" -o -name "*sysupgrade*" -o -name "*factory*" | \
+            xargs -I{} cp {} /tmp/release_files/ 2>/dev/null || true
+          cp *-packages.tar.gz /tmp/release_files/ 2>/dev/null || true
+    
       - name: 发布 Release
         id: release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ steps.config.outputs.build_id }}"
-          files: openwrt/bin/targets/**/*
+          files: |
+            openwrt/bin/targets/**/*.img.gz
+            openwrt/bin/targets/**/*sysupgrade*
+            openwrt/bin/targets/**/*factory*
+            *-packages.tar.gz
 
       - name: 上报：完成
         if: always()
