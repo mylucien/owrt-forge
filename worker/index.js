@@ -1104,12 +1104,7 @@ function json(data, status = 200, extraHeaders = {}) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   
-  function fmtTime(ts) {
-    if (!ts) return '—';
-    const d = new Date(Number(ts));
-    const pad = (n) => String(n).padStart(2, '0');
-    return \`\${d.getFullYear()}-\${pad(d.getMonth() + 1)}-\${pad(d.getDate())} \${pad(d.getHours()}:\${pad(d.getMinutes())}\`;
-  }
+  function fmtTime(ts) {\n  if (!ts) return '—';\n  const d = new Date(Number(ts));\n  const pad = (n) => String(n).padStart(2, '0');\n  return \`\${d.getFullYear()}-\${pad(d.getMonth() + 1)}-\${pad(d.getDate())} \${pad(d.getHours())}:\${pad(d.getMinutes())}\`;\n}
   
   function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
   function qs(root, sel) { return root.querySelector(sel); }
@@ -1887,6 +1882,16 @@ function json(data, status = 200, extraHeaders = {}) {
       return;
     }
     renderTriggerForm(tpl, history);
+
+    // 页面刷新后自动恢复轮询：检查该模板是否有进行中的 build
+    try {
+      const { builds } = await api.listBuilds();
+      const active = builds.find((b) =>
+        b.template_id === tplId &&
+        ['pending', 'running', 'menuconfig', 'compiling'].includes(b.status)
+      );
+      if (active) startBuildWatch(active.id);
+    } catch {}
   }
   
   function renderTriggerForm(tpl, history) {
@@ -1975,14 +1980,14 @@ function json(data, status = 200, extraHeaders = {}) {
         \${(build.trigger_type === 'scheduled' ? ['排队', '准备', '编译', '完成'] : ['排队', '准备', '配置', '编译', '完成']).map((l) => \`<span>\${l}</span>\`).join('')}
       </div>
       \${showTerminal ? \`
-      <div style="margin-top:18px;">
-        <div class="terminal-frame-wrap">
-          <div class="terminal-bar">
-            <span>网页终端 · 在 ncurses 界面里完成 menuconfig，保存退出后自动推送配置并开始编译</span>
-            <a href="\${escapeHtml(build.web_url)}" target="_blank" rel="noopener">在新窗口打开 →</a>
-          </div>
-          <iframe src="\${escapeHtml(build.web_url)}" loading="lazy"></iframe>
+      <div style="margin-top:18px;padding:20px;background:var(--panel-raised);border:1px solid var(--border);border-radius:var(--radius-lg);text-align:center;">
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px;">
+          menuconfig 终端已就绪，在 ncurses 界面完成配置后保存退出，自动推送并开始编译
         </div>
+        <a href="\${escapeHtml(build.web_url)}" target="_blank" rel="noopener">
+          <button class="primary" style="font-size:14px;padding:10px 28px;">🖥️ 打开 menuconfig 终端</button>
+        </a>
+        <div class="hint" style="margin-top:10px;">将在新窗口打开，可随时关闭后重新点击进入</div>
       </div>\` : ''}
       \${build.status === 'success' && build.download_url ? \`<div class="links"><a href="\${escapeHtml(build.download_url)}" target="_blank" rel="noopener">下载编译产物 →</a></div>\` : ''}
       \${build.status === 'failed' ? \`<div class="hint" style="color:var(--bad);margin-top:10px;">编译失败，可在编译记录中查看详情</div>\` : ''}
@@ -2045,7 +2050,7 @@ function json(data, status = 200, extraHeaders = {}) {
       </div>
       \${renderTimeline(b)}
       <div class="links">
-        \${b.web_url && b.status === 'menuconfig' ? \`<a href="\${escapeHtml(b.web_url)}" target="_blank" rel="noopener">打开网页终端 →</a>\` : ''}
+        \${b.web_url ? \`<a href="\${escapeHtml(b.web_url)}" target="_blank" rel="noopener">打开网页终端 →</a>\` : ''}
         \${b.download_url ? \`<a href="\${escapeHtml(b.download_url)}" target="_blank" rel="noopener">下载产物 →</a>\` : ''}
       </div>
     </div>\`).join('');
@@ -2203,4 +2208,3 @@ function json(data, status = 200, extraHeaders = {}) {
       ctx.waitUntil(runScheduledBuilds(env, event.cron));
     },
   };
-  
