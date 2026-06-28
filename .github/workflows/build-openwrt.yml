@@ -4,11 +4,11 @@ on:
   repository_dispatch:
     types: [build-openwrt]
 
-# 修复1：WORKER_URL 加引号，避免 https:// 中的冒号被 YAML 解析器误判
-# 修复2：改用 secrets.WORKER_URL（推荐）或保持 vars.WORKER_URL，
-#        但必须加引号；此处保留 vars 以兼容原配置
+# WORKER_URL 不再依赖 GitHub Actions Variables（vars），完全由 Worker 在触发
+# repository_dispatch 时通过 client_payload.worker_url 下发，实现 GitHub 侧零变量。
+# 加引号避免 https:// 中的冒号被 YAML 解析器误判。
 env:
-  WORKER_URL: "${{ vars.WORKER_URL }}"
+  WORKER_URL: "${{ github.event.client_payload.worker_url }}"
 
 jobs:
   build:
@@ -30,6 +30,13 @@ jobs:
           echo "trigger_type=$(jq -r '.trigger_type // "manual"' config.json)" >> "$GITHUB_OUTPUT"
           HAS=$(jq -r 'if .dotconfig_snapshot and .dotconfig_snapshot != "" then "true" else "false" end' config.json)
           echo "has_dotconfig=$HAS" >> "$GITHUB_OUTPUT"
+          # config.json 里的 worker_url 是部署向导里填写的"权威"地址，
+          # 用它覆盖 env.WORKER_URL（两者通常一致，这里以 D1 配置为准，
+          # 避免触发时刻与上报时刻地址不一致）。
+          CFG_WORKER_URL=$(jq -r '.worker_url // ""' config.json)
+          if [ -n "$CFG_WORKER_URL" ]; then
+            echo "WORKER_URL=$CFG_WORKER_URL" >> "$GITHUB_ENV"
+          fi
 
       - name: 上报：已开始
         run: |
@@ -105,7 +112,8 @@ jobs:
         if: steps.config.outputs.trigger_type == 'manual'
         id: webterm
         env:
-          WORKER_URL: "${{ vars.WORKER_URL }}"
+          # WORKER_URL 已在"拉取完整配置"步骤中通过 GITHUB_ENV 更新为
+          # config.json 里的权威地址，这里直接继承顶层 env，无需再引用 vars
           REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
           TTYD_USER: "${{ secrets.TTYD_USER }}"
           TTYD_PASS: "${{ secrets.TTYD_PASS }}"
