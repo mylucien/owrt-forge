@@ -28,7 +28,33 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
 
 - 一个 Cloudflare 账号（免费版够用）
 - 一个 GitHub 账号，新建（或选一个）**public** 仓库，专门用来跑这个编译 workflow
-- 一个有 `repo` 权限的 GitHub Personal Access Token（classic 或 fine-grained 都行，需要能对该仓库发 `repository_dispatch` 事件、创建 Release，以及取消 workflow run——fine-grained token 对应勾选 Contents 和 Actions 的读写权限即可，三项能力都包含在内）
+- 一个 GitHub Personal Access Token（下面教怎么创建）
+
+### 2.1 创建 GitHub Personal Access Token
+
+这个 Token 会在 3.7 节的部署向导里填进去，作用是让 Worker 能代表你去触发编译、发布 Release、取消任务。两种类型选一种即可：
+
+**方式一：fine-grained token（推荐，权限范围更小更安全）**
+
+1. 登录 GitHub，右上角头像 → Settings → 左侧最底部 Developer settings → Personal access tokens → Fine-grained tokens → Generate new token
+2. **Token name**：随便起，比如 `openwrt-builder`
+3. **Expiration**：建议设一个具体日期而不是"无限期"，到期前去续期即可，更安全
+4. **Repository access**：选 "Only select repositories"，勾选你 2 节准备的那个仓库
+5. **Permissions** → Repository permissions，找到并设置：
+   - **Contents**：Read and write（发布 Release 需要）
+   - **Actions**：Read and write（触发 `repository_dispatch`、取消 workflow run 都需要）
+   - 其余权限不用动，保持默认 "No access" 即可
+6. 点 "Generate token"，**立刻复制生成的字符串**（形如 `github_pat_xxxxx`），离开页面后就再也看不到明文了
+
+**方式二：classic token（权限粒度粗，配置更简单）**
+
+1. 登录 GitHub，右上角头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)
+2. **Note**：随便起一个名字
+3. **Expiration**：同上，建议设具体日期
+4. **Select scopes**：只需要勾选最顶层的 **`repo`** 这一个大类（会自动包含读写代码、发 dispatch 事件、创建 Release、取消 workflow 等所有需要的子权限），其余都不用勾
+5. 点 "Generate token"，立刻复制
+
+两种方式生成的字符串都形如 `ghp_xxxxx` 或 `github_pat_xxxxx`，先存到安全的地方（比如密码管理器），等 3.7 节部署向导里会用到。
 
 ---
 
@@ -145,9 +171,11 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 | `TTYD_USER` | 网页终端的登录用户名，自己定，比如 `admin` |
 | `TTYD_PASS` | 网页终端的登录密码，自己定，建议用随机串 |
 
+`TTYD_USER`/`TTYD_PASS` 是干什么用的：手动触发编译时，GitHub Actions 虚拟机里会跑一个叫 `ttyd` 的网页终端程序，把 `make menuconfig` 的操作界面通过 `cloudflared` 临时隧道暴露到公网上，这样你才能在浏览器里直接操作勾选插件。这两个值就是这个临时网页终端的登录用户名和密码——`ttyd` 启动时会用 `--credential "$TTYD_USER:$TTYD_PASS"` 加上这层 Basic Auth 保护，避免别人猜到那个随机域名就能直接进来操作你的终端。这两个值完全由你自己定义，不需要跟 Worker 那边的任何配置对应，只要保证 GitHub 仓库这边设置过就行；并且只在触发编译那次的 Actions 运行环境里使用，不会被持久化存储到任何数据库。
+
 GitHub 侧不再需要配置任何 **Variables**——原来的 `WORKER_URL` 现在由 Worker 在触发编译时自动下发，不用你手动维护。
 
-仓库自带的 `GITHUB_TOKEN`（用于发布 Release）不需要你手动配置，Actions 运行时会自动注入，只要仓库的 Actions 权限里"Workflow permissions"设置成至少有 "Read and write permissions" 即可（仓库 Settings → Actions → General → Workflow permissions）。
+仓库自带的 `GITHUB_TOKEN`（用于发布 Release）不需要你手动配置，Actions 运行时会自动注入，只要仓库的 Actions 权限里"Workflow permissions"设置成至少有 "Read and write permissions" 即可（仓库 Settings → Actions → General → Workflow permissions）。这个跟你在 2.1 节创建、填进部署向导的那个 GitHub PAT 是两套完全不同的凭证：`GITHUB_TOKEN` 是 GitHub 在每次 Actions 运行时临时生成、自动注入、运行结束就失效的内置令牌，只在仓库内部使用（比如这里发布 Release）；你创建的 PAT 则是从外部（Worker）发起 `repository_dispatch` 来触发这个仓库的 workflow，必须是长期有效、你自己持有的凭证，两者不能互相替代。
 
 ### 3.7 网页端：系统初始化 + 部署向导
 
@@ -157,7 +185,7 @@ GitHub 侧不再需要配置任何 **Variables**——原来的 `WORKER_URL` 现
 2. **部署向导**填三项：
    - **Worker URL**：默认已经填好当前网址，正常情况不用改；如果你的 Worker 配置了多个路由入口，确认这里填的是你希望编译流程上报回来的那个地址
    - **GitHub 仓库**：格式 `owner/repo`，对应 3.5 节里放 workflow 的那个仓库
-   - **GitHub PAT**：3.2 节准备的那个 Token
+   - **GitHub PAT**：2.1 节创建的那个 Token
 3. 点"保存并生成 REPORT_TOKEN"，页面会显示一个随机生成的 `REPORT_TOKEN`，**复制它**
 4. 回到 GitHub 仓库，按 3.6 节的方式把这个值粘贴进 `REPORT_TOKEN` 这个 Secret
 5. 网页上点"完成，进入主界面"——这个 token 之后不会再以明文形式展示，如果忘了复制或要轮换，去右上角 ⚙️ 设置菜单里点"重置 REPORT_TOKEN"重新生成一次（两边都要同步更新）
