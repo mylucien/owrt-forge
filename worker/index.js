@@ -17,6 +17,9 @@
 //     key   TEXT PRIMARY KEY,
 //     value TEXT NOT NULL
 //   );
+//
+// 取消编译功能需要 builds 表新增一列（已有部署执行一次即可，新部署建表时直接加上）：
+//   ALTER TABLE builds ADD COLUMN github_run_id TEXT;
 // ============================================================
 
 // ============================================================
@@ -687,6 +690,7 @@ function json(data, status = 200, extraHeaders = {}) {
   // 编译触发 + builds 列表 + workflow 上报
   // ============================================================
   const ACTIVE_STATUSES = ['pending', 'running', 'menuconfig', 'compiling'];
+  const STATUS_LABELS_BACKEND = { pending: '排队中', running: '准备中', menuconfig: '配置中', compiling: '编译中', success: '成功', failed: '失败', cancelled: '已取消' };
   
   async function hasActiveBuild(env) {
     // Note: soft guard only -- D1 lacks SELECT FOR UPDATE, so two concurrent
@@ -819,6 +823,56 @@ function json(data, status = 200, extraHeaders = {}) {
     return json({ build: serializeBuild(row) });
   }
   
+  // 需登录：手动取消一个进行中的编译任务
+  async function handleCancelBuild(request, env, id) {
+    const row = await env.DB.prepare('SELECT * FROM builds WHERE id = ?').bind(id).first();
+    if (!row) return err('编译记录不存在', 404);
+  
+    if (!ACTIVE_STATUSES.includes(row.status)) {
+      return err(`当前状态为「${STATUS_LABELS_BACKEND[row.status] || row.status}」，无需取消`, 409);
+    }
+  
+    // 先尝试真正取消 GitHub Actions 那边的 workflow run，再无论成败都把 D1 状态标记为 cancelled，
+    // 保证用户至少能解开"同时只能跑一个任务"的并发锁，不会因为 GitHub 那边调用失败就卡死在原状态。
+    let githubCancelError = null;
+    if (row.github_run_id) {
+      try {
+        await cancelGithubWorkflowRun(env, row.github_run_id);
+      } catch (e) {
+        githubCancelError = e.message;
+      }
+    } else {
+      githubCancelError = 'workflow 尚未上报 run_id（可能还在排队阶段），仅在本系统中标记为已取消，GitHub Actions 那边的任务请手动去仓库的 Actions 页面取消';
+    }
+  
+    await env.DB.prepare('UPDATE builds SET status=?, updated_at=? WHERE id=?')
+      .bind('cancelled', now(), id)
+      .run();
+  
+    return json({ ok: true, github_cancel_warning: githubCancelError || undefined });
+  }
+  
+  async function cancelGithubWorkflowRun(env, runId) {
+    const githubRepo = await getConfig(env, 'github_repo');
+    const githubToken = await getConfig(env, 'github_token');
+    if (!githubRepo || !githubToken) {
+      throw new Error('GitHub 配置未完成');
+    }
+    const resp = await fetch(`https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/cancel`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'openwrt-auto-build-worker',
+      },
+    });
+    // 202 = 已接受取消请求；404/409 通常是 run 已经结束或已经在取消中，不视为失败
+    if (!resp.ok && resp.status !== 404 && resp.status !== 409) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`GitHub 取消请求失败: ${resp.status} ${text}`);
+    }
+  }
+  
   // workflow 专用：拉取完整配置（REPORT_TOKEN 鉴权）
   async function handleWorkflowGetConfig(request, env, buildId) {
     const row = await env.DB.prepare('SELECT * FROM builds WHERE id = ?').bind(buildId).first();
@@ -871,6 +925,10 @@ function json(data, status = 200, extraHeaders = {}) {
     if (body.download_url !== undefined) {
       fields.push('download_url=?');
       values.push(body.download_url);
+    }
+    if (body.github_run_id !== undefined) {
+      fields.push('github_run_id=?');
+      values.push(String(body.github_run_id));
     }
     fields.push('updated_at=?');
     values.push(now());
@@ -1365,6 +1423,7 @@ function json(data, status = 200, extraHeaders = {}) {
     trigger(body) { return this.post('/api/trigger', body); },
     listBuilds() { return this.get('/api/builds'); },
     getBuild(id) { return this.get(\`/api/builds/\${id}\`); },
+    cancelBuild(id) { return this.post(\`/api/builds/\${id}/cancel\`); },
   };
   
   const store = { authed: false, systemStatus: 'ready', route: { name: 'templates', params: {} }, templates: [], builds: [], pollTimer: null };
@@ -1406,6 +1465,24 @@ function json(data, status = 200, extraHeaders = {}) {
   
   const SOURCE_LABELS = { manual_upload: '手动上传', menuconfig_push: 'menuconfig推送', imported: '导入' };
   const STATUS_LABELS = { pending: '排队中', running: '准备中', menuconfig: '配置中', compiling: '编译中', success: '成功', failed: '失败', cancelled: '已取消' };
+  const ACTIVE_BUILD_STATUSES = ['pending', 'running', 'menuconfig', 'compiling'];
+  
+  // 取消编译：列表页和触发页的实时进度卡片共用这一个处理函数
+  async function cancelBuildWithConfirm(buildId, onDone) {
+    if (!confirm('确认要取消这个编译任务吗？已经跑起来的 GitHub Actions 任务会一并取消。')) return;
+    try {
+      const res = await api.cancelBuild(buildId);
+      if (res.github_cancel_warning) {
+        // 这条提示文字较长，用 alert 而不是会自动消失的 toast，确保用户能看完
+        alert(\`已在本系统标记为取消，但：\n\n\${res.github_cancel_warning}\`);
+      } else {
+        toast('已取消', 'success');
+      }
+      if (onDone) await onDone();
+    } catch (e) {
+      reportApiError(e, '取消失败');
+    }
+  }
   
   function statusBadgeClass(status) {
     if (status === 'success') return 'ok';
@@ -2485,6 +2562,7 @@ function json(data, status = 200, extraHeaders = {}) {
   
   function renderBuildWatchCard(container, build) {
     const showTerminal = build.status === 'menuconfig' && build.web_url;
+    const canCancel = ACTIVE_BUILD_STATUSES.includes(build.status);
     container.innerHTML = \`
     <div class="section">
       <h2><span>编译状态</span><span class="badge \${statusBadgeClass(build.status)}">\${STATUS_LABELS[build.status] || build.status}</span></h2>
@@ -2504,7 +2582,15 @@ function json(data, status = 200, extraHeaders = {}) {
       </div>\` : ''}
       \${build.status === 'success' && build.download_url ? \`<div class="links"><a href="\${escapeHtml(build.download_url)}" target="_blank" rel="noopener">下载编译产物 →</a></div>\` : ''}
       \${build.status === 'failed' ? \`<div class="hint" style="color:var(--bad);margin-top:10px;">编译失败，可在编译记录中查看详情</div>\` : ''}
+      \${canCancel ? \`<div style="margin-top:16px;"><button class="ghost small" id="watch-cancel-btn" style="color:var(--bad);">取消编译</button></div>\` : ''}
     </div>\`;
+    if (canCancel) {
+      qs(container, '#watch-cancel-btn').addEventListener('click', () => {
+        cancelBuildWithConfirm(build.id, async () => {
+          try { const res = await api.getBuild(build.id); renderBuildWatchCard(container, res.build); } catch {}
+        });
+      });
+    }
   }
   
   async function renderBuildsPage() {
@@ -2552,7 +2638,7 @@ function json(data, status = 200, extraHeaders = {}) {
     }
     const tplNameOf = (id) => (store.templates.find((t) => t.id === id) || {}).name || id || '—';
     area.innerHTML = builds.map((b) => \`
-    <div class="build-row">
+    <div class="build-row" data-build-id="\${escapeHtml(b.id)}">
       <div class="top-line">
         <div class="left-info">
           <span class="tpl-name">\${escapeHtml(tplNameOf(b.template_id))}</span>
@@ -2565,8 +2651,16 @@ function json(data, status = 200, extraHeaders = {}) {
       <div class="links">
         \${b.web_url ? \`<a href="\${escapeHtml(b.web_url)}" target="_blank" rel="noopener">打开网页终端 →</a>\` : ''}
         \${b.download_url ? \`<a href="\${escapeHtml(b.download_url)}" target="_blank" rel="noopener">下载产物 →</a>\` : ''}
+        \${ACTIVE_BUILD_STATUSES.includes(b.status) ? \`<button class="ghost small cancel-build-btn" style="color:var(--bad);margin-left:auto;">取消编译</button>\` : ''}
       </div>
     </div>\`).join('');
+    qsa(area, '.cancel-build-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
+        if (!buildId) return;
+        cancelBuildWithConfirm(buildId, loadBuildsList);
+      });
+    });
   }
   
   async function bootAfterLogin() {
@@ -2712,6 +2806,10 @@ function json(data, status = 200, extraHeaders = {}) {
     {
       const m = path.match(/^\/api\/builds\/([^/]+)$/);
       if (m && method === 'GET') return handleGetBuild(request, env, decodeURIComponent(m[1]));
+    }
+    {
+      const m = path.match(/^\/api\/builds\/([^/]+)\/cancel$/);
+      if (m && method === 'POST') return handleCancelBuild(request, env, decodeURIComponent(m[1]));
     }
   
     return err('not found', 404);
