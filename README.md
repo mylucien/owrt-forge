@@ -28,7 +28,7 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
 
 - 一个 Cloudflare 账号（免费版够用）
 - 一个 GitHub 账号，新建（或选一个）**public** 仓库，专门用来跑这个编译 workflow
-- 一个有 `repo` 权限的 GitHub Personal Access Token（classic 或 fine-grained 都行，需要能对该仓库发 `repository_dispatch` 事件，并允许创建 Release）
+- 一个有 `repo` 权限的 GitHub Personal Access Token（classic 或 fine-grained 都行，需要能对该仓库发 `repository_dispatch` 事件、创建 Release，以及取消 workflow run——fine-grained token 对应勾选 Contents 和 Actions 的读写权限即可，三项能力都包含在内）
 
 ---
 
@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS builds (
   status TEXT,
   web_url TEXT,
   download_url TEXT,
+  github_run_id TEXT,
   created_at INTEGER,
   updated_at INTEGER
 );
@@ -94,6 +95,8 @@ CREATE TABLE IF NOT EXISTS system_config (
   value TEXT NOT NULL
 );
 ```
+
+> 如果是从旧版本升级（D1 里已经有 `builds` 表，且没有 `github_run_id` 这一列），去 D1 控制台单独跑一句：`ALTER TABLE builds ADD COLUMN github_run_id TEXT;` 补上即可，不用重建整张表。
 
 确认四张表（`templates`、`dotconfig_history`、`builds`、`system_config`）都建好了。
 
@@ -250,6 +253,8 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 
 系统每个模板只保留最近 10 条历史，超出会自动清掉最旧的，但**正被定时任务引用的版本永远不会被自动清理**，不用担心删错。
 
+> 手动编译里 menuconfig 保存退出后产生的版本，存的通常是经过 `scripts/diffconfig.sh` 精简后的内容（只有偏离默认值的选项，比如几十到几百行），不是动辄几千行的完整 `.config`，这是正常现象——下次编译时 `make defconfig` 会自动把缺省项补全，效果跟用完整版一样，只是查看历史时更短更好读。如果某个版本看起来完整（几千行），说明那次精简步骤回退到了完整版，同样可以正常使用。
+
 ### 4.6 导出 / 导入模板
 
 **导出**：模板详情页点"导出模板"，会下载一个 `.openwrt-template.json` 文件，包含源码地址、插件列表、两段脚本，以及当前那份 `.config` 的内容。
@@ -261,6 +266,13 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 ### 4.7 查看编译记录
 
 顶部导航"编译记录"，列出所有手动和定时触发过的任务，每条都有状态徽章和进度条，定时任务会标"定时"角标。失败、成功的任务都能在这里回溯。
+
+排队中、准备中、配置中、编译中这几个进行中的状态，记录右下角会出现"取消编译"按钮（触发页的实时进度卡片上也有同样的按钮）。点击后会做两件事：
+
+1. 调用 GitHub API 真正取消那次 Actions 运行，不会让虚拟机白白空跑到超时
+2. 把这条记录在本系统里标成"已取消"，解开"同时只能跑一个任务"的并发锁，可以立刻触发下一次编译
+
+> 取消按钮依赖 workflow 上报的 `github_run_id`，这个值是在 workflow 真正开始执行（"上报：已开始"这一步）之后才会回传的。如果任务还卡在刚触发、Actions 那边还没真正起跑的极短暂窗口期就点了取消，系统会提示"仅在本系统中标记为已取消"，需要你自己去 GitHub 仓库的 Actions 页面手动取消那次 run——但绝大多数卡死场景（编译耗时太久、menuconfig 终端没人操作）发生在这一步之后，正常使用基本不会碰到这个提示。
 
 ### 4.8 设置菜单（右上角 ⚙️）
 
@@ -304,14 +316,24 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 - 该仓库是否真的有 `.github/workflows/build-openwrt.yml` 这个文件，且分支是仓库默认分支
 - 如果改过 GitHub PAT，确认走的是"重新配置 GitHub 连接"而不是直接去 GitHub 那边重新生成了 Token 但没同步更新到这边
 
+排查完上面几项还是卡住不动，直接在编译记录里点"取消编译"解开并发锁，改完配置再重新触发一次即可，不需要等 6 小时自动超时判失败。
+
 **进度卡在"准备"，终端窗口一直不出现**
 去 GitHub 仓库的 Actions 页面看那次 run 的实时日志，通常是源码 clone 太慢，或者某个插件仓库地址写错、`diy_script_1` 脚本报错导致后续步骤跑不到 ttyd 那一步。如果日志里 `curl` 请求 Worker 接口直接返回 401，大概率是 GitHub 仓库 Secrets 里的 `REPORT_TOKEN` 跟网页这边当前的值不一致（比如重置过 REPORT_TOKEN 后忘了同步），去设置菜单"重置 REPORT_TOKEN"重新生成一次，再去 GitHub 仓库更新对应 Secret。
+
+**menuconfig 里 Save & Exit 之后终端卡住不动，或 Actions 日志里看到 "Argument list too long"**
+这是 `.config` 内容推送失败导致的：早期版本的 `push-config` 脚本会把整份 `.config` 内容直接当作命令行参数传给 `jq`/`curl`，而 Linux 对单条命令行参数长度有约 128KB 的硬限制（`MAX_ARG_STRLEN`），完整的 OpenWrt `.config` 文件随便就是几十万字节，远超这个限制，会在还没发出网络请求之前就被系统拒绝——跟"内容太多导致 Worker 这边报错"看起来很像，但其实是两回事，跟我们在 Worker 那边设的 2MB 体积上限完全无关，单纯靠减少选中的插件数量也不一定能稳定避开（取决于具体哪天的内容刚好压在临界值附近）。
+
+现在的版本已经修了这个问题：改用文件读取（`jq --rawfile` / `curl --data-binary @文件`）传递内容，不再经过命令行参数，无论 `.config` 多大都不会再触发这个限制。同时还加了一层优化——保存退出后会先尝试用 OpenWrt 官方自带的 `scripts/diffconfig.sh` 把配置精简成"只保留偏离默认值的选项"再上传，体积通常只有完整 `.config` 的几十分之一，版本历史里查看起来也更清楚；如果这一步因为某些源码版本不兼容而失败，会自动回退上传完整版，不影响编译流程。如果你还在用旧版 `build-openwrt.yml`，把这个文件更新到最新版本即可。
 
 **终端弹出来了，但显示 401 / 打不开**
 检查 `TTYD_USER`/`TTYD_PASS` 是否正确配置在 GitHub 仓库的 Actions Secrets 里，必须两个都设置，并且跟 Worker 里没有关系（这两个密钥只存在于 GitHub Actions 那一侧）。
 
 **编译失败，状态显示 failed**
 去 GitHub Actions 的日志里看具体哪一步报错，常见原因是插件仓库地址失效、`make defconfig` 后某个依赖的 feeds 包没装上、或者磁盘空间不够（GitHub 免费 runner 只有几十 GB，编译大固件偶尔会爆盘）。
+
+**任务卡死了，进度条不动也不报错，想手动停掉重新来**
+编译记录（或触发页的实时进度卡片）上点"取消编译"。这会真正去取消 GitHub 那边的 Actions 运行，同时把本系统这条记录标成"已取消"，并发锁立刻解开，可以马上重新触发。如果点了之后提示"仅在本系统中标记为已取消"，说明任务还没跑到能上报 `run_id` 的那一步（极短暂的窗口期），需要自己去 GitHub 仓库的 Actions 页面手动取消那次 run，但这种情况很少见。
 
 **定时编译到点了没有触发**
 检查两处 cron 表达式是否**逐字符**一致：Worker 的 Cron Triggers 设置 vs 模板详情页里"定时编译"填的表达式。空格、星号都要完全对上。另外确认模板那边"使用版本"确实选了一个版本，没选是无法保存启用状态的。
