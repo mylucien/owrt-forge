@@ -16,6 +16,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: 检出仓库（获取 .github/scripts）
         uses: actions/checkout@v4
         
