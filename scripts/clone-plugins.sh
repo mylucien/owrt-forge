@@ -22,26 +22,27 @@ resolve_auth() {
   printf '%s\n%s\n' "$clean_url" "$token"
 }
 
+# 生成临时 credential helper 脚本，返回脚本路径
+make_helper() {
+  local token="$1"
+  local f
+  f=$(mktemp)
+  chmod +x "$f"
+  printf '#!/bin/sh\nprintf "username=x-access-token\\npassword=%s\\n" "%s"\n' "$token" "$token" > "$f"
+  printf '%s' "$f"
+}
+
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
 
   if [ -n "$token" ]; then
-    # 用 credential helper 方式注入，彻底绕开命令行参数和环境变量的限制。
-    # git 在需要凭据时会调用 helper 脚本，脚本直接输出 username/password，
-    # 不经过命令行参数，不会出现在 /proc/<pid>/cmdline，也不受 git 版本影响。
-    local helper_script
-    helper_script=$(mktemp)
-    chmod +x "$helper_script"
-    # printf 而不是 echo，避免内容含特殊字符时出问题
-    printf '#!/bin/sh\nprintf "username=x-access-token\\npassword=%s\\n" "%s"\n' "$token" "$token" > "$helper_script"
+    local helper
+    helper=$(make_helper "$token")
 
-    git -c "credential.helper=${helper_script}" clone "$@" "$clean_url" "$target"
+    git -c "credential.helper=${helper}" clone "$@" "$clean_url" "$target"
+    rm -f "$helper"
 
-    # 清理 helper 脚本，token 不落盘残留
-    rm -f "$helper_script"
-
-    # .git/config 里写入同样的 helper，供 sparse-checkout 触发的二次 fetch 使用；
-    # 注意这里写的是 helper 路径已经被删掉了，所以改为直接写 extraheader
+    # 写入 extraheader 供克隆后同目录内的后续 git 操作（如二次 fetch）使用
     git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
   else
     git clone "$@" "$clean_url" "$target"
@@ -53,19 +54,16 @@ git_sparse_clone() {
   local repodir
   repodir=$(basename "$clean_url" .git)
 
-  local helper_script=""
   if [ -n "$token" ]; then
-    helper_script=$(mktemp)
-    chmod +x "$helper_script"
-    printf '#!/bin/sh\nprintf "username=x-access-token\\npassword=%s\\n" "%s"\n' "$token" "$token" > "$helper_script"
-  fi
+    local helper
+    helper=$(make_helper "$token")
 
-  if [ -n "$helper_script" ]; then
-    git -c "credential.helper=${helper_script}" clone \
+    git -c "credential.helper=${helper}" clone \
       --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse \
       "$clean_url" "$repodir"
-    rm -f "$helper_script"
-    # 二次 fetch 用 extraheader
+    rm -f "$helper"
+
+    # 必须在 sparse-checkout set 之前写入，否则二次 fetch 无凭据
     git -C "$repodir" config http.extraheader "Authorization: Bearer ${token}"
   else
     git clone \
@@ -79,6 +77,7 @@ git_sparse_clone() {
     mv -f "$@" ../package/
   )
 
+  # 临时目录含 .git（含凭据配置）整个删掉
   rm -rf "$repodir"
 }
 
