@@ -7,7 +7,6 @@
 set -euo pipefail
 
 # --- 新增配置：指定 Git 使用 SSH 私钥 ---
-# 注意：这里 ~/.ssh/id_ed25519 必须与你在 Actions Setup 步骤中保存的文件名一致
 export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
 # ---------------------------------------
 
