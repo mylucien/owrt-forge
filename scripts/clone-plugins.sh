@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # 用途：根据 config.json 里的 plugins 列表克隆插件源码到 openwrt/package。
 # 支持稀疏克隆（sparse: true 时只拉取指定子目录）。
+# 支持私有仓库鉴权，同时规避以下三个令牌泄露风险：
+#   1. 令牌出现在命令行参数里，被同机其它进程通过 /proc/<pid>/cmdline 读到
+#   2. 令牌出现在 git 报错信息里，被原样打印进 Actions 日志（Actions 只打码
+#      secrets 上下文里的值，运行时从 config.json 解出来的令牌它并不知情）
+#   3. 令牌被 git 写死进克隆下来的 .git/config，残留在磁盘上，
+#      一旦后续打包逻辑变化就可能被带进产物
+#
+# config.json 里 plugins[] 的字段约定：
+#   git_url : 仓库地址。推荐不内嵌凭据；若为兼容旧数据内嵌了
+#             https://TOKEN@host/... 形式，脚本会自动识别并拆分。
+#   token   : （推荐）单独字段传令牌，不与 URL 混在一起。
+#   branch / sparse / dirs / name : 同原逻辑。
 #
 # 用法：在仓库根目录下执行，config.json 与 openwrt/ 均位于当前目录。
 set -euo pipefail
@@ -21,14 +33,21 @@ resolve_auth() {
   if [ -n "$token" ]; then
     # GitHub Actions 的日志打码依赖运行时显式注册，
     # 只要 job 还没结束，同一 run 内这个字符串后续再出现也会被打成 ***
-    echo "::add-mask::${token}"
+    # 关键：必须写到 stderr。这个函数是用 $(resolve_auth ...) 取返回值的，
+    # 命令替换会把函数里所有写到 stdout 的内容都捕获进来，如果这行也走 stdout，
+    # 会跟下面 printf 的两行结果混在一起，导致调用方用 sed 按行取值时整体错位一行
+    # （clean_url 和 token 的值会互相串掉），进而让 git clone 收到一个乱码地址。
+    echo "::add-mask::${token}" >&2
   fi
 
   printf '%s\n%s\n' "$clean_url" "$token"
 }
 
 # 用 HTTP header 方式鉴权做克隆：令牌不会出现在 URL / 命令行参数里，
-# 克隆完成后无论是否用了 header 都主动清掉，避免残留进 .git/config。
+# 克隆完成后主动清掉可能残留的 extraheader 配置，避免凭据落地磁盘。
+# 注意：这里不清理 .git 目录——稀疏克隆流程紧接着还要用 .git 做
+# sparse-checkout，提前删掉会导致 "fatal: not a git repository"。
+# .git 的清理交给各调用方按自己的需要处理（见下方两处调用）。
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
   local extra_header=()
@@ -44,10 +63,6 @@ authed_clone() {
   # extraheader 有可能被 git clone 一并写进新仓库的本地配置，
   # 不管有没有用到都统一清一遍，杜绝凭据落地磁盘。
   git -C "$target" config --unset-all http.extraheader 2>/dev/null || true
-
-  # 插件源码进 openwrt/package 只是为了参与编译，不需要 git 历史，
-  # 顺手删掉 .git，既减小体积，也彻底断绝任何凭据残留的可能。
-  rm -rf "$target/.git"
 }
 
 function git_sparse_clone() {
@@ -60,6 +75,8 @@ function git_sparse_clone() {
 
   cd "$repodir" && git sparse-checkout set "$@"
   mv -f "$@" ../package/
+  # 临时克隆目录（含 .git、含任何可能残留的凭据配置）整个删掉，
+  # 不需要像整仓克隆那样单独处理 .git。
   cd .. && rm -rf "$repodir"
 }
 
@@ -82,5 +99,8 @@ jq -c '.plugins[]' ../config.json | while read -r p; do
   else
     name=$(echo "$p" | jq -r .name)
     authed_clone "$clean_url" "$token" "package/$name" --depth 1
+    # 插件源码进 openwrt/package 只是为了参与编译，不需要 git 历史，
+    # 顺手删掉 .git，既减小体积，也彻底断绝凭据残留磁盘的可能。
+    rm -rf "package/$name/.git"
   fi
 done
