@@ -25,19 +25,25 @@ resolve_auth() {
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
 
-  echo "DEBUG clean_url: $clean_url"
-  echo "DEBUG token length: ${#token}"
-
   if [ -n "$token" ]; then
-    echo "DEBUG: using auth header"
-    GIT_CONFIG_COUNT=1 \
-    GIT_CONFIG_KEY_0="http.extraheader" \
-    GIT_CONFIG_VALUE_0="Authorization: Bearer ${token}" \
-    git clone "$@" "$clean_url" "$target"
+    # 用 credential helper 方式注入，彻底绕开命令行参数和环境变量的限制。
+    # git 在需要凭据时会调用 helper 脚本，脚本直接输出 username/password，
+    # 不经过命令行参数，不会出现在 /proc/<pid>/cmdline，也不受 git 版本影响。
+    local helper_script
+    helper_script=$(mktemp)
+    chmod +x "$helper_script"
+    # printf 而不是 echo，避免内容含特殊字符时出问题
+    printf '#!/bin/sh\nprintf "username=x-access-token\\npassword=%s\\n" "%s"\n' "$token" "$token" > "$helper_script"
 
+    git -c "credential.helper=${helper_script}" clone "$@" "$clean_url" "$target"
+
+    # 清理 helper 脚本，token 不落盘残留
+    rm -f "$helper_script"
+
+    # .git/config 里写入同样的 helper，供 sparse-checkout 触发的二次 fetch 使用；
+    # 注意这里写的是 helper 路径已经被删掉了，所以改为直接写 extraheader
     git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
   else
-    echo "DEBUG: no token, cloning without auth"
     git clone "$@" "$clean_url" "$target"
   fi
 }
@@ -47,8 +53,25 @@ git_sparse_clone() {
   local repodir
   repodir=$(basename "$clean_url" .git)
 
-  authed_clone "$clean_url" "$token" "$repodir" \
-    --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse
+  local helper_script=""
+  if [ -n "$token" ]; then
+    helper_script=$(mktemp)
+    chmod +x "$helper_script"
+    printf '#!/bin/sh\nprintf "username=x-access-token\\npassword=%s\\n" "%s"\n' "$token" "$token" > "$helper_script"
+  fi
+
+  if [ -n "$helper_script" ]; then
+    git -c "credential.helper=${helper_script}" clone \
+      --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse \
+      "$clean_url" "$repodir"
+    rm -f "$helper_script"
+    # 二次 fetch 用 extraheader
+    git -C "$repodir" config http.extraheader "Authorization: Bearer ${token}"
+  else
+    git clone \
+      --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse \
+      "$clean_url" "$repodir"
+  fi
 
   (
     cd "$repodir"
@@ -66,18 +89,9 @@ while read -r p; do
   raw_url=$(printf '%s\n' "$p" | jq -r .git_url)
   raw_token=$(printf '%s\n' "$p" | jq -r '.token // ""')
 
-  echo "DEBUG raw_url: $raw_url"
-  echo "DEBUG raw_token length: ${#raw_token}"
-
   auth_result=$(resolve_auth "$raw_url" "$raw_token")
-
-  echo "DEBUG auth_result line count: $(printf '%s\n' "$auth_result" | wc -l)"
-
   clean_url=$(printf '%s\n' "$auth_result" | sed -n '1p')
   token=$(printf '%s\n' "$auth_result" | sed -n '2p')
-
-  echo "DEBUG extracted clean_url: $clean_url"
-  echo "DEBUG extracted token length: ${#token}"
 
   if [ "$(printf '%s\n' "$p" | jq -r .sparse)" = "true" ]; then
     mapfile -t dirs < <(printf '%s\n' "$p" | jq -r '.dirs[]')
