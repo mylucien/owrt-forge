@@ -17,11 +17,27 @@
 
 | 部分 | 是什么 | 部署在哪 |
 |---|---|---|
-| `worker.js` | 网页 + API + 数据库读写 + 定时任务调度 | Cloudflare Worker |
+| `index.js` | 网页 + API + 数据库读写 + 定时任务调度 | Cloudflare Worker |
 | `build-openwrt.yml` | 真正执行 git clone / 编译 / 发布 Release 的脚本 | 你自己的 GitHub 仓库（必须 public） |
 
 Worker 自己不编译任何东西，只负责存配置、点火、收结果。所有重活——拉源码、跑脚本、编译——都在 GitHub Actions 的虚拟机里做。
-
+文件结构
+.github/
+├── workflows/
+│   └── build-openwrt.yml
+├── worker/
+│   └── index.js
+└── scripts/
+    ├── report.sh              ← 通用状态上报，各步骤复用
+    ├── fetch-config.sh        ← 拉取 config.json
+    ├── clone-plugins.sh       ← 插件克隆（整仓/稀疏）
+    ├── write-dotconfig.sh     ← 写入底稿 .config
+    ├── push-config.sh         ← menuconfig 确认后推送配置
+    ├── menuconfig-session.sh  ← ttyd 会话入口
+    ├── webterm-start.sh       ← 启动 ttyd + cloudflared
+    ├── wait-menuconfig.sh     ← 轮询等待 + 超时上报
+    ├── package-artifacts.sh   ← 打包产物
+    └── report-final.sh        ← 结束时的最终上报
 ---
 
 ## 2. 部署前需要准备
