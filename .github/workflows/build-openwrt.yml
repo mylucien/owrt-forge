@@ -20,7 +20,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 修复脚本执行权限
-        run: chmod +x "$SCRIPTS_DIR"/*.sh
+        run: |
+          cd "$SCRIPTS_DIR"
+          chmod +x *.sh
         
       - name: 拉取完整配置
         id: config
