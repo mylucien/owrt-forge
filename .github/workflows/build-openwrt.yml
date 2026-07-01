@@ -16,8 +16,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      # 脚本被拆分到独立文件后，必须先把本仓库本身检出到 runner 上，
-      # 否则 .github/scripts/*.sh 根本不存在，后续 bash 调用会全部失败。
       - name: 检出仓库（获取 .github/scripts）
         uses: actions/checkout@v4
 
