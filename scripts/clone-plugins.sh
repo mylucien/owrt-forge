@@ -12,7 +12,7 @@ resolve_auth() {
     clean_url="https://${BASH_REMATCH[2]}"
   fi
 
-  # 统一补全 .git 后缀，兼容填了和没填两种情况
+  # 统一补全 .git 后缀
   [[ "$clean_url" != *.git ]] && clean_url="${clean_url}.git"
 
   if [ -n "$token" ]; then
@@ -25,7 +25,11 @@ resolve_auth() {
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
 
+  echo "DEBUG clean_url: $clean_url"
+  echo "DEBUG token length: ${#token}"
+
   if [ -n "$token" ]; then
+    echo "DEBUG: using auth header"
     GIT_CONFIG_COUNT=1 \
     GIT_CONFIG_KEY_0="http.extraheader" \
     GIT_CONFIG_VALUE_0="Authorization: Bearer ${token}" \
@@ -33,6 +37,7 @@ authed_clone() {
 
     git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
   else
+    echo "DEBUG: no token, cloning without auth"
     git clone "$@" "$clean_url" "$target"
   fi
 }
@@ -40,7 +45,6 @@ authed_clone() {
 git_sparse_clone() {
   local branch="$1" clean_url="$2" token="$3"; shift 3
   local repodir
-  # basename 去掉 .git 后缀
   repodir=$(basename "$clean_url" .git)
 
   authed_clone "$clean_url" "$token" "$repodir" \
@@ -62,9 +66,18 @@ while read -r p; do
   raw_url=$(printf '%s\n' "$p" | jq -r .git_url)
   raw_token=$(printf '%s\n' "$p" | jq -r '.token // ""')
 
+  echo "DEBUG raw_url: $raw_url"
+  echo "DEBUG raw_token length: ${#raw_token}"
+
   auth_result=$(resolve_auth "$raw_url" "$raw_token")
+
+  echo "DEBUG auth_result line count: $(printf '%s\n' "$auth_result" | wc -l)"
+
   clean_url=$(printf '%s\n' "$auth_result" | sed -n '1p')
   token=$(printf '%s\n' "$auth_result" | sed -n '2p')
+
+  echo "DEBUG extracted clean_url: $clean_url"
+  echo "DEBUG extracted token length: ${#token}"
 
   if [ "$(printf '%s\n' "$p" | jq -r .sparse)" = "true" ]; then
     mapfile -t dirs < <(printf '%s\n' "$p" | jq -r '.dirs[]')
