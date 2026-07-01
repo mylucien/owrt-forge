@@ -147,14 +147,14 @@ CREATE TABLE IF NOT EXISTS system_config (
 ### 3.2 新建 Worker，粘贴代码
 
 1. Workers & Pages → 创建 Worker，随便取个名字（比如 `openwrt-builder`）。
-2. 打开在线编辑器，把 `worker.js` 的全部内容复制粘贴进去，覆盖默认代码。
+2. 打开在线编辑器，把 `index.js` 的全部内容复制粘贴进去，覆盖默认代码。
 3. 点 Deploy。
 
 ### 3.3 绑定 D1 数据库
 
 Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 
-- **变量名称**必须填 `DB`（worker.js 里硬编码用的就是 `env.DB`，改了名字就连不上数据库）
+- **变量名称**必须填 `DB`（index.js 里硬编码用的就是 `env.DB`，改了名字就连不上数据库）
 - 选择 3.1 节建的那个数据库
 
 ### 3.4 配置一个 Secret：`MASTER_KEY`
@@ -165,7 +165,7 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 |---|---|---|
 | `MASTER_KEY` | 一段随机字符串 | 用于加密 D1 里存的登录密码哈希、GitHub 仓库/Token、Worker URL、上报密钥，并派生登录态签名密钥。建议 32 位以上随机串，比如终端跑 `openssl rand -hex 32` |
 
-第一次打开网页时在线填写（见 3.7 节）登录密码、GitHub 仓库地址、GitHub PAT、Worker URL、`REPORT_TOKEN` ，加密后存进 D1 的 `system_config` 表。`MASTER_KEY` 是唯一的密钥，丢失意味着 D1 里所有加密的配置都无法解密，需要清空 `system_config` 表重新走一遍初始化流程（详见第 5 节）。
+第一次打开网页时在线填写登录密码、GitHub 仓库地址、GitHub PAT、Worker URL、`REPORT_TOKEN` ，加密后存进 D1 的 `system_config` 表。`MASTER_KEY` 是唯一的密钥，丢失意味着 D1 里所有加密的配置都无法解密，需要清空 `system_config` 表重新走一遍初始化流程（详见第 5 节）。
 
 ### 3.5 配置 GitHub 仓库的 Secrets
 
