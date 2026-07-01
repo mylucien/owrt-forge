@@ -7,7 +7,7 @@ on:
 env:
   WORKER_URL: "${{ github.event.client_payload.worker_url }}"
   REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
-  SCRIPTS_DIR: "${{ github.workspace }}/.github/scripts"
+  SCRIPTS_DIR: "${{ github.workspace }}/scripts"
 
 jobs:
   build:
@@ -21,8 +21,7 @@ jobs:
 
       - name: 修复脚本执行权限
         run: |
-          cd "$SCRIPTS_DIR"
-          chmod +x *.sh
+          chmod +x "$SCRIPTS_DIR"/*.sh
         
       - name: 拉取完整配置
         id: config
