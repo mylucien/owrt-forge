@@ -6,7 +6,7 @@ resolve_auth() {
   local token="$raw_token"
   local clean_url="$raw_url"
 
-  # 兼容旧格式：token 内嵌在 URL 里
+  # 兼容 URL 内嵌 token 的旧格式（classic PAT / fine-grained PAT 均支持）
   if [ -z "$token" ] && [[ "$raw_url" =~ ^https://([^@/[:space:]]+)@(.+)$ ]]; then
     token="${BASH_REMATCH[1]}"
     clean_url="https://${BASH_REMATCH[2]}"
@@ -16,7 +16,6 @@ resolve_auth() {
   [[ "$clean_url" != *.git ]] && clean_url="${clean_url}.git"
 
   if [ -n "$token" ]; then
-    # 注册打码，后续日志中该字符串一律显示为 ***
     echo "::add-mask::${token}" >&2
   fi
 
@@ -27,13 +26,13 @@ authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
 
   if [ -n "$token" ]; then
-    # 把 token 内嵌进 URL，这是 git 最兼容的鉴权方式
-    # ::add-mask:: 已注册，日志里 token 会被打成 ***
-    local authed_url
-    authed_url="${clean_url/https:\/\//https://x-access-token:${token}@}"
-    git clone "$@" "$authed_url" "$target"
+    # fine-grained PAT 只支持 Bearer，不支持 Basic Auth / URL 内嵌
+    # 用 git -c 直接传 extraheader，避免环境变量方式的兼容性问题
+    git \
+      -c "http.extraheader=Authorization: Bearer ${token}" \
+      clone "$@" "$clean_url" "$target"
 
-    # 供后续同目录 git 操作（sparse 二次 fetch）使用，clone 完再写，不影响克隆本身
+    # 写入克隆仓库自己的 .git/config，供后续二次 fetch 使用
     git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
   else
     git clone "$@" "$clean_url" "$target"
@@ -46,12 +45,13 @@ git_sparse_clone() {
   repodir=$(basename "$clean_url" .git)
 
   if [ -n "$token" ]; then
-    local authed_url
-    authed_url="${clean_url/https:\/\//https://x-access-token:${token}@}"
-    git clone \
+    git \
+      -c "http.extraheader=Authorization: Bearer ${token}" \
+      clone \
       --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse \
-      "$authed_url" "$repodir"
-    # 写入 extraheader，供 sparse-checkout set 触发的二次 fetch 使用
+      "$clean_url" "$repodir"
+
+    # 必须在 sparse-checkout set 之前写入，供二次 fetch 使用
     git -C "$repodir" config http.extraheader "Authorization: Bearer ${token}"
   else
     git clone \
@@ -65,7 +65,7 @@ git_sparse_clone() {
     mv -f "$@" ../package/
   )
 
-  # 临时目录含 .git（含凭据配置）整个删掉，不残留
+  # 整个临时目录删掉，含 .git/config 里的凭据
   rm -rf "$repodir"
 }
 
