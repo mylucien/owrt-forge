@@ -35,8 +35,7 @@ resolve_auth() {
     # 只要 job 还没结束，同一 run 内这个字符串后续再出现也会被打成 ***
     # 关键：必须写到 stderr。这个函数是用 $(resolve_auth ...) 取返回值的，
     # 命令替换会把函数里所有写到 stdout 的内容都捕获进来，如果这行也走 stdout，
-    # 会跟下面 printf 的两行结果混在一起，导致调用方用 sed 按行取值时整体错位一行
-    # （clean_url 和 token 的值会互相串掉），进而让 git clone 收到一个乱码地址。
+    # 会跟下面 printf 的两行结果混在一起，导致调用方用 sed 按行取值时整体错位一行。
     echo "::add-mask::${token}" >&2
   fi
 
@@ -44,23 +43,18 @@ resolve_auth() {
 }
 
 # 用 HTTP header 方式鉴权做克隆。
-# 关键点：git clone 命令行上的 `-c http.extraheader=...` 只对这一次 clone
-# 请求生效，并不会被自动写进新仓库的 .git/config（已用公开仓库实测确认，
-# 跟一些资料里"clone -c 会持久化到新仓库"的笼统说法不一致，这里以实测为准）。
-# 而稀疏/部分克隆（--filter=blob:none）后面 git sparse-checkout set 触发的
-# 二次 fetch 是一个全新的、独立的 git 进程，不会继承那个一次性 -c 参数——
-# 如果不显式把凭据写进这份克隆自己的 .git/config，二次 fetch 对私有仓库
-# 就会因为零凭据而报 "could not read Username" / "could not fetch ... from
-# promisor remote"。所以这里克隆完之后额外用一条独立的 git config 命令把
-# 凭据显式落进这份克隆的本地配置，让同目录下后续的 git 操作都能自动复用。
+# 使用 Bearer 认证（GitHub 明确推荐，无需 base64 编码，更简洁）。
+# git clone 命令行上的 `-c http.extraheader=...` 只对这一次 clone 请求生效，
+# 不会被自动写进新仓库的 .git/config。
+# 而稀疏/部分克隆后 git sparse-checkout set 触发的二次 fetch 是独立的 git 进程，
+# 不会继承那个一次性 -c 参数——所以克隆完之后额外用一条独立的 git config 命令
+# 把凭据显式落进这份克隆的本地配置，让后续 git 操作都能自动复用。
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
   local extra_header=()
-  local basic=""
 
   if [ -n "$token" ]; then
-    basic=$(printf '%s' "x-access-token:${token}" | base64 -w0)
-    extra_header=(-c "http.extraheader=Authorization: Basic ${basic}")
+    extra_header=(-c "http.extraheader=Authorization: Bearer ${token}")
   fi
 
   git "${extra_header[@]}" clone "$@" "$clean_url" "$target"
@@ -69,46 +63,53 @@ authed_clone() {
     # 显式落盘进这份克隆自己的 .git/config，供后续（如 sparse-checkout
     # 触发的二次 fetch）同仓库内的 git 操作自动复用，直到这份克隆整个
     # 被删除（sparse 场景删临时目录，full 场景删 .git）为止。
-    git -C "$target" config "http.extraheader" "Authorization: Basic ${basic}"
+    git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
   fi
 }
 
-function git_sparse_clone() {
+git_sparse_clone() {
   local branch="$1" clean_url="$2" token="$3"; shift 3
+  # "$@" 此后为 dirs 数组
   local repodir
   repodir=$(basename "$clean_url")
 
   authed_clone "$clean_url" "$token" "$repodir" \
     --depth=1 -b "$branch" --single-branch --filter=blob:none --sparse
 
-  cd "$repodir" && git sparse-checkout set "$@"
-  mv -f "$@" ../package/
-  # 临时克隆目录（含 .git、含刚才显式写入的凭据配置）整个删掉，
-  # 不需要像整仓克隆那样单独处理 .git。
-  cd .. && rm -rf "$repodir"
+  # 用子 shell 隔离 cd，确保任何步骤失败时不影响外层工作目录
+  (
+    cd "$repodir"
+    git sparse-checkout set "$@"
+    mv -f "$@" ../package/
+  )
+
+  # 临时克隆目录（含 .git、含刚才显式写入的凭据配置）整个删掉
+  rm -rf "$repodir"
 }
 
 mkdir -p openwrt/package
 cd openwrt
 
-jq -c '.plugins[]' ../config.json | while read -r p; do
-  raw_url=$(echo "$p" | jq -r .git_url)
-  raw_token=$(echo "$p" | jq -r '.token // ""')
+while read -r p; do
+  raw_url=$(printf '%s\n' "$p" | jq -r .git_url)
+  raw_token=$(printf '%s\n' "$p" | jq -r '.token // ""')
 
   # 只调用一次 resolve_auth，避免重复触发 ::add-mask::；
   # 用换行分隔取回 clean_url / token，规避 URL 或 token 本身含特殊字符时 IFS 拆分出错
   auth_result=$(resolve_auth "$raw_url" "$raw_token")
-  clean_url=$(echo "$auth_result" | sed -n '1p')
-  token=$(echo "$auth_result" | sed -n '2p')
+  clean_url=$(printf '%s\n' "$auth_result" | sed -n '1p')
+  token=$(printf '%s\n' "$auth_result" | sed -n '2p')
 
-  if [ "$(echo "$p" | jq -r .sparse)" = "true" ]; then
-    dirs=$(echo "$p" | jq -r '.dirs[]' | tr '\n' ' ')
-    git_sparse_clone "$(echo "$p" | jq -r .branch)" "$clean_url" "$token" $dirs
+  if [ "$(printf '%s\n' "$p" | jq -r .sparse)" = "true" ]; then
+    # 用数组接收 dirs，避免目录名含空格时裸变量展开出错
+    mapfile -t dirs < <(printf '%s\n' "$p" | jq -r '.dirs[]')
+    git_sparse_clone "$(printf '%s\n' "$p" | jq -r .branch)" \
+      "$clean_url" "$token" "${dirs[@]}"
   else
-    name=$(echo "$p" | jq -r .name)
+    name=$(printf '%s\n' "$p" | jq -r .name)
     authed_clone "$clean_url" "$token" "package/$name" --depth 1
     # 插件源码进 openwrt/package 只是为了参与编译，不需要 git 历史，
     # 顺手删掉 .git，既减小体积，也彻底断绝凭据残留磁盘的可能。
     rm -rf "package/$name/.git"
   fi
-done
+done < <(jq -c '.plugins[]' ../config.json)
