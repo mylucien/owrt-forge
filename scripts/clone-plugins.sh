@@ -31,39 +31,31 @@ resolve_auth() {
   fi
 
   if [ -n "$token" ]; then
-    # GitHub Actions 的日志打码依赖运行时显式注册，
-    # 只要 job 还没结束，同一 run 内这个字符串后续再出现也会被打成 ***
-    # 关键：必须写到 stderr。这个函数是用 $(resolve_auth ...) 取返回值的，
-    # 命令替换会把函数里所有写到 stdout 的内容都捕获进来，如果这行也走 stdout，
-    # 会跟下面 printf 的两行结果混在一起，导致调用方用 sed 按行取值时整体错位一行。
+    # 必须写到 stderr，避免被命令替换捕获后与 printf 的输出混在一起
     echo "::add-mask::${token}" >&2
   fi
 
   printf '%s\n%s\n' "$clean_url" "$token"
 }
 
-# 用 HTTP header 方式鉴权做克隆。
-# 使用 Bearer 认证（GitHub 明确推荐，无需 base64 编码，更简洁）。
-# git clone 命令行上的 `-c http.extraheader=...` 只对这一次 clone 请求生效，
-# 不会被自动写进新仓库的 .git/config。
-# 而稀疏/部分克隆后 git sparse-checkout set 触发的二次 fetch 是独立的 git 进程，
-# 不会继承那个一次性 -c 参数——所以克隆完之后额外用一条独立的 git config 命令
-# 把凭据显式落进这份克隆的本地配置，让后续 git 操作都能自动复用。
+# 用环境变量方式注入鉴权头，完全绕开 shell 对参数值的解析，
+# 避免值里的空格/冒号被拆开导致 git 收到畸形 -c 参数。
+# GIT_CONFIG_COUNT/KEY/VALUE 是 git 2.31+ 的标准方式，Actions runner 满足要求。
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
-  local extra_header=()
 
   if [ -n "$token" ]; then
-    extra_header=(-c "http.extraheader=Authorization: Bearer ${token}")
-  fi
+    GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0="http.extraheader" \
+    GIT_CONFIG_VALUE_0="Authorization: Bearer ${token}" \
+    git clone "$@" "$clean_url" "$target"
 
-  git "${extra_header[@]}" clone "$@" "$clean_url" "$target"
-
-  if [ -n "$token" ]; then
     # 显式落盘进这份克隆自己的 .git/config，供后续（如 sparse-checkout
     # 触发的二次 fetch）同仓库内的 git 操作自动复用，直到这份克隆整个
     # 被删除（sparse 场景删临时目录，full 场景删 .git）为止。
     git -C "$target" config http.extraheader "Authorization: Bearer ${token}"
+  else
+    git clone "$@" "$clean_url" "$target"
   fi
 }
 
