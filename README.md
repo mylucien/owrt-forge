@@ -21,6 +21,7 @@
 | `build-openwrt.yml` | 真正执行 git clone / 编译 / 发布 Release 的脚本 | 你自己的 GitHub 仓库（必须 public） |
 
 Worker 自己不编译任何东西，只负责存配置、点火、收结果。所有重活——拉源码、跑脚本、编译——都在 GitHub Actions 的虚拟机里做。
+---
 文件结构
 .github/
 ├── workflows/
@@ -38,8 +39,6 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
     ├── wait-menuconfig.sh     ← 轮询等待 + 超时上报
     ├── package-artifacts.sh   ← 打包产物
     └── report-final.sh        ← 结束时的最终上报
----
-
 ## 2. 部署前需要准备
 
 - 一个 Cloudflare 账号（免费版够用）
