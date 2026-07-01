@@ -4,11 +4,10 @@ on:
   repository_dispatch:
     types: [build-openwrt]
 
-# WORKER_URL 不再依赖 GitHub Actions Variables（vars），完全由 Worker 在触发
-# repository_dispatch 时通过 client_payload.worker_url 下发，实现 GitHub 侧零变量。
-# 加引号避免 https:// 中的冒号被 YAML 解析器误判。
 env:
   WORKER_URL: "${{ github.event.client_payload.worker_url }}"
+  REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
+  SCRIPTS_DIR: "${{ github.workspace }}/.github/scripts"
 
 jobs:
   build:
@@ -17,33 +16,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      # 脚本被拆分到独立文件后，必须先把本仓库本身检出到 runner 上，
+      # 否则 .github/scripts/*.sh 根本不存在，后续 bash 调用会全部失败。
+      - name: 检出仓库（获取 .github/scripts）
+        uses: actions/checkout@v4
+
       - name: 拉取完整配置
         id: config
-        run: |
-          set -e
-          BUILD_ID="${{ github.event.client_payload.build_id }}"
-          curl -sf -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-            "$WORKER_URL/api/builds/$BUILD_ID/config" -o config.json
-
-          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
-          echo "template_id=$(jq -r '.template_id // ""' config.json)" >> "$GITHUB_OUTPUT"
-          echo "trigger_type=$(jq -r '.trigger_type // "manual"' config.json)" >> "$GITHUB_OUTPUT"
-          HAS=$(jq -r 'if .dotconfig_snapshot and .dotconfig_snapshot != "" then "true" else "false" end' config.json)
-          echo "has_dotconfig=$HAS" >> "$GITHUB_OUTPUT"
-          # config.json 里的 worker_url 是部署向导里填写的"权威"地址，
-          # 用它覆盖 env.WORKER_URL（两者通常一致，这里以 D1 配置为准，
-          # 避免触发时刻与上报时刻地址不一致）。
-          CFG_WORKER_URL=$(jq -r '.worker_url // ""' config.json)
-          if [ -n "$CFG_WORKER_URL" ]; then
-            echo "WORKER_URL=$CFG_WORKER_URL" >> "$GITHUB_ENV"
-          fi
+        env:
+          BUILD_ID: "${{ github.event.client_payload.build_id }}"
+        run: bash "$SCRIPTS_DIR/fetch-config.sh"
 
       - name: 上报：已开始
         run: |
-          curl -sf -X POST "$WORKER_URL/api/report" \
-            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"running\",\"github_run_id\":\"${{ github.run_id }}\"}"
+          bash "$SCRIPTS_DIR/report.sh" "${{ steps.config.outputs.build_id }}" running \
+            "\"github_run_id\":\"${{ github.run_id }}\""
 
       - name: 安装基础依赖
         run: |
@@ -66,29 +53,7 @@ jobs:
         run: cd openwrt && ./scripts/feeds update -a
 
       - name: 克隆插件源码（支持整仓 / 稀疏克隆）
-        run: |
-          set -e
-          function git_sparse_clone() {
-            branch="$1" repourl="$2" && shift 2
-            git clone --depth=1 -b "$branch" --single-branch \
-              --filter=blob:none --sparse "$repourl"
-            repodir=$(basename "$repourl")
-            cd "$repodir" && git sparse-checkout set "$@"
-            mv -f "$@" ../package/
-            cd .. && rm -rf "$repodir"
-          }
-          mkdir -p openwrt/package
-          cd openwrt
-          jq -c '.plugins[]' ../config.json | while read -r p; do
-            url=$(echo "$p" | jq -r .git_url)
-            if [ "$(echo "$p" | jq -r .sparse)" = "true" ]; then
-              dirs=$(echo "$p" | jq -r '.dirs[]' | tr '\n' ' ')
-              git_sparse_clone "$(echo "$p" | jq -r .branch)" "$url" $dirs
-            else
-              name=$(echo "$p" | jq -r .name)
-              git clone --depth 1 "$url" "package/$name"
-            fi
-          done
+        run: bash "$SCRIPTS_DIR/clone-plugins.sh"
 
       - name: feeds install
         run: cd openwrt && ./scripts/feeds install -a
@@ -100,168 +65,36 @@ jobs:
           cd openwrt && bash ../diy2.sh
 
       - name: 写入底稿 .config（如有）
-        run: |
-          set -e
-          if [ "${{ steps.config.outputs.has_dotconfig }}" = "true" ]; then
-            jq -r .dotconfig_snapshot config.json > openwrt/.config
-            cd openwrt && make defconfig
-          fi
+        env:
+          HAS_DOTCONFIG: "${{ steps.config.outputs.has_dotconfig }}"
+        run: bash "$SCRIPTS_DIR/write-dotconfig.sh"
 
       # ── 手动触发：ttyd menuconfig ────────────────────────────────
-      - name: 注入脚本 + 启动 ttyd
+      - name: 启动 ttyd Web 终端
         if: steps.config.outputs.trigger_type == 'manual'
         id: webterm
         env:
-          # WORKER_URL 已在"拉取完整配置"步骤中通过 GITHUB_ENV 更新为
-          # config.json 里的权威地址，这里直接继承顶层 env，无需再引用 vars
-          REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
           TTYD_USER: "${{ secrets.TTYD_USER }}"
           TTYD_PASS: "${{ secrets.TTYD_PASS }}"
           BUILD_ID: "${{ steps.config.outputs.build_id }}"
           OPENWRT_DIR: "${{ github.workspace }}/openwrt"
-        run: |
-          set -eo pipefail
- 
-          # push-config：menuconfig 保存退出后上传 .config 到 Worker
-          # 单引号 heredoc 阻止写入阶段展开，运行时读取环境变量
-          sudo tee /usr/local/bin/push-config > /dev/null << 'PUSH_SCRIPT'
-          #!/usr/bin/env bash
-          set -euo pipefail
-          : "${WORKER_URL:?WORKER_URL 未设置}"
-          : "${REPORT_TOKEN:?REPORT_TOKEN 未设置}"
-          : "${BUILD_ID:?BUILD_ID 未设置}"
-          : "${OPENWRT_DIR:?OPENWRT_DIR 未设置}"
-
-          CONFIG_TO_PUSH="$OPENWRT_DIR/.config"
-          PUSHED_KIND="完整版"
-
-          # 优先推送精简版：OpenWrt 官方 scripts/diffconfig.sh 只保留偏离默认值的选项，
-          # 体积通常只有完整 .config 的几十分之一，生成失败（极少数源码版本可能不兼容）
-          # 则自动回退推送完整 .config，不阻塞主流程。还原时 make defconfig 对两种格式
-          # 都能正确展开成完整配置，详见"写入底稿 .config"那一步，不需要额外改动。
-          if [ -x "$OPENWRT_DIR/scripts/diffconfig.sh" ]; then
-            if (cd "$OPENWRT_DIR" && ./scripts/diffconfig.sh > /tmp/diffconfig.min 2>/tmp/diffconfig.err) \
-               && [ -s /tmp/diffconfig.min ]; then
-              CONFIG_TO_PUSH=/tmp/diffconfig.min
-              PUSHED_KIND="精简版"
-            else
-              echo "⚠️ diffconfig.sh 精简失败，回退推送完整 .config（不影响编译）" >&2
-              cat /tmp/diffconfig.err >&2 2>/dev/null || true
-            fi
-          fi
-
-          # 关键修复：不再把整份配置内容当作单个命令行参数传给 jq / curl。
-          # Linux 单个命令行参数长度上限约 128KB（MAX_ARG_STRLEN），完整 .config
-          # 经常轻松超过这个数字，之前用 --arg/-d 直接传值会触发系统级的
-          # "Argument list too long"，请求根本发不出去，跟 Worker 那边 2MB 的
-          # JSON 体积上限完全是两回事。改用 --rawfile 让 jq 直接读文件、
-          # curl --data-binary @file 直接读文件，全程不经过命令行参数。
-          jq -n \
-            --arg build_id "$BUILD_ID" \
-            --rawfile content "$CONFIG_TO_PUSH" \
-            '{build_id: $build_id, content: $content}' > /tmp/dotconfig_payload.json
-
-          curl -sf -X POST "$WORKER_URL/api/report/dotconfig" \
-            -H "X-Report-Token: $REPORT_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data-binary @/tmp/dotconfig_payload.json
-          echo "✅ .config 已推送（$PUSHED_KIND）"
-          PUSH_SCRIPT
-          sudo chmod +x /usr/local/bin/push-config
-
-          # menuconfig-session：ttyd 会话入口
-          # 未保存（Exit without saving）：脚本退出，ttyd 等待下次连接重新执行
-          # 已保存（Save & Exit）：推送配置，kill ttyd，推进编译
-          cat > /tmp/menuconfig-session.sh << 'SESSION_SCRIPT'
-          #!/usr/bin/env bash
-          cd "$OPENWRT_DIR"
-          BEFORE=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
-          make menuconfig || true
-          AFTER=$(stat -c %Y "$OPENWRT_DIR/.config" 2>/dev/null || echo 0)
-          if [ "$AFTER" -gt "$BEFORE" ]; then
-            echo ""
-            echo "✅ 保存完成，正在推送配置..."
-            push-config
-            touch /tmp/menuconfig-done
-            pkill -f "ttyd --port 7681" || true
-            echo "🚀 配置已推送，即将开始编译，可以关闭此窗口"
-          else
-            echo ""
-            echo "⚠️ 未保存，可重新连接继续配置"
-            sleep 3
-          fi
-          SESSION_SCRIPT
-          chmod +x /tmp/menuconfig-session.sh
-
-          # 锁定 ttyd 版本号，避免 latest 重定向偶发失败
-          TTYD_VER="1.7.7"
-          curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VER}/ttyd.x86_64" \
-            -o /tmp/ttyd_bin
-          sudo install -m 0755 /tmp/ttyd_bin /usr/local/bin/ttyd
-
-          ttyd --port 7681 \
-               --credential "${TTYD_USER}:${TTYD_PASS}" \
-               --max-clients 1 \
-               --writable \
-               /tmp/menuconfig-session.sh &
-
-          # 修复3：同样锁定 cloudflared 版本
-          CF_VER="2024.12.2"
-          curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CF_VER}/cloudflared-linux-amd64" \
-            -o /tmp/cloudflared_bin
-          sudo install -m 0755 /tmp/cloudflared_bin /usr/local/bin/cloudflared
-
-          cloudflared tunnel --url http://localhost:7681 \
-            --no-autoupdate > /tmp/cf.log 2>&1 &
-
-          URL=""
-          for i in $(seq 1 30); do
-            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf.log | head -1 || true)
-            [ -n "$URL" ] && break
-            sleep 2
-          done
-
-          if [ -z "$URL" ]; then
-            echo "未能在 60 秒内获取 cloudflared 隧道地址" >&2
-            cat /tmp/cf.log >&2
-            exit 1
-          fi
-
-          AUTH_URL="https://${TTYD_USER}:${TTYD_PASS}@${URL#https://}"
-          echo "web_url=${AUTH_URL}" >> "$GITHUB_OUTPUT"
+        run: bash "$SCRIPTS_DIR/webterm-start.sh"
 
       - name: 上报：Web 终端地址
         if: steps.config.outputs.trigger_type == 'manual'
         run: |
-          curl -sf -X POST "$WORKER_URL/api/report" \
-            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"menuconfig\",\"web_url\":\"${{ steps.webterm.outputs.web_url }}\"}"
+          bash "$SCRIPTS_DIR/report.sh" "${{ steps.config.outputs.build_id }}" menuconfig \
+            "\"web_url\":\"${{ steps.webterm.outputs.web_url }}\""
 
       - name: 等待 menuconfig 完成（超时 30 分钟）
         if: steps.config.outputs.trigger_type == 'manual'
-        run: |
-          TIMEOUT=1800
-          ELAPSED=0
-          while [ ! -f /tmp/menuconfig-done ]; do
-            sleep 10
-            ELAPSED=$((ELAPSED + 10))
-            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
-              curl -sf -X POST "$WORKER_URL/api/report" \
-                -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-                -H "Content-Type: application/json" \
-                -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"failed\",\"reason\":\"menuconfig_timeout\"}"
-              exit 1
-            fi
-          done
+        env:
+          BUILD_ID: "${{ steps.config.outputs.build_id }}"
+        run: bash "$SCRIPTS_DIR/wait-menuconfig.sh"
       # ── ttyd 结束 ────────────────────────────────────────────────
 
       - name: 上报：开始编译
-        run: |
-          curl -sf -X POST "$WORKER_URL/api/report" \
-            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"build_id\":\"${{ steps.config.outputs.build_id }}\",\"status\":\"compiling\"}"
+        run: bash "$SCRIPTS_DIR/report.sh" "${{ steps.config.outputs.build_id }}" compiling
 
       - name: 编译
         run: |
@@ -269,18 +102,8 @@ jobs:
           make -j$(nproc) || make -j1 V=s
 
       - name: 打包产物
-        run: |
-          cd openwrt/bin/targets
-          find . -type d -mindepth 2 -maxdepth 2 | while read dir; do
-            name=$(echo "$dir" | tr '/' '-' | sed 's/^-//')
-            tar czf "../../../${name}-packages.tar.gz" -C "$dir" .
-          done
-          cd ${{ github.workspace }}
-          # 只保留 rootfs / sysupgrade 镜像 + 打包的 packages
-          find openwrt/bin/targets -name "*.img.gz" -o -name "*sysupgrade*" -o -name "*factory*" | \
-            xargs -I{} cp {} /tmp/release_files/ 2>/dev/null || true
-          cp *-packages.tar.gz /tmp/release_files/ 2>/dev/null || true
-    
+        run: bash "$SCRIPTS_DIR/package-artifacts.sh"
+
       - name: 发布 Release
         id: release
         uses: softprops/action-gh-release@v2
@@ -294,16 +117,7 @@ jobs:
 
       - name: 上报：完成
         if: always()
-        run: |
-          BUILD_ID="${{ steps.config.outputs.build_id }}"
-          if [ "${{ job.status }}" = "success" ]; then
-            STATUS="success"
-            DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/tag/build-${BUILD_ID}"
-          else
-            STATUS="failed"
-            DOWNLOAD_URL=""
-          fi
-          curl -sf -X POST "$WORKER_URL/api/report" \
-            -H "X-Report-Token: ${{ secrets.REPORT_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"build_id\":\"${BUILD_ID}\",\"status\":\"${STATUS}\",\"download_url\":\"${DOWNLOAD_URL}\"}"
+        env:
+          BUILD_ID: "${{ steps.config.outputs.build_id }}"
+          JOB_STATUS: "${{ job.status }}"
+        run: bash "$SCRIPTS_DIR/report-final.sh"
