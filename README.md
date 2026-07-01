@@ -1,7 +1,25 @@
 # OpenWrt 自动编译系统 — 部署与使用文档
 
-配套文件：`worker.js`（Cloudflare Worker，含前端）、`build-openwrt.yml`（GitHub Actions workflow）
-
+配套文件：`index.js`（Cloudflare Worker，含前端）、`build-openwrt.yml`（GitHub Actions workflow）
+```text
+文件结构
+.github/
+├── workflows/
+│   └── build-openwrt.yml
+├── worker/
+│   └── index.js
+└── scripts/
+    ├── report.sh              ← 通用状态上报，各步骤复用
+    ├── fetch-config.sh        ← 拉取 config.json
+    ├── clone-plugins.sh       ← 插件克隆（整仓/稀疏）
+    ├── write-dotconfig.sh     ← 写入底稿 .config
+    ├── push-config.sh         ← menuconfig 确认后推送配置
+    ├── menuconfig-session.sh  ← ttyd 会话入口
+    ├── webterm-start.sh       ← 启动 ttyd + cloudflared
+    ├── wait-menuconfig.sh     ← 轮询等待 + 超时上报
+    ├── package-artifacts.sh   ← 打包产物
+    └── report-final.sh        ← 结束时的最终上报
+```
 ---
 
 ## 1. 这套系统是什么
@@ -22,23 +40,6 @@
 
 Worker 自己不编译任何东西，只负责存配置、点火、收结果。所有重活——拉源码、跑脚本、编译——都在 GitHub Actions 的虚拟机里做。
 ---
-文件结构
-.github/
-├── workflows/
-│   └── build-openwrt.yml
-├── worker/
-│   └── index.js
-└── scripts/
-    ├── report.sh              ← 通用状态上报，各步骤复用
-    ├── fetch-config.sh        ← 拉取 config.json
-    ├── clone-plugins.sh       ← 插件克隆（整仓/稀疏）
-    ├── write-dotconfig.sh     ← 写入底稿 .config
-    ├── push-config.sh         ← menuconfig 确认后推送配置
-    ├── menuconfig-session.sh  ← ttyd 会话入口
-    ├── webterm-start.sh       ← 启动 ttyd + cloudflared
-    ├── wait-menuconfig.sh     ← 轮询等待 + 超时上报
-    ├── package-artifacts.sh   ← 打包产物
-    └── report-final.sh        ← 结束时的最终上报
 ## 2. 部署前需要准备
 
 - 一个 Cloudflare 账号（免费版够用）
@@ -79,7 +80,7 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
 
 进 Cloudflare 控制台 → Workers & Pages → D1，新建一个数据库，名字随意，比如 `openwrt-builder`。
 
-进这个数据库的 Console，把下面 SQL 整段贴进去执行：
+进这个数据库的 Console，把下面 SQL 分段贴进去执行：
 
 ```sql
 CREATE TABLE IF NOT EXISTS templates (
@@ -156,7 +157,7 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 - **变量名称**必须填 `DB`（worker.js 里硬编码用的就是 `env.DB`，改了名字就连不上数据库）
 - 选择 3.1 节建的那个数据库
 
-### 3.4 配置唯一一个 Secret：`MASTER_KEY`
+### 3.4 配置一个 Secret：`MASTER_KEY`
 
 在 Settings → Variables and Secrets 里只需要添加一个，**勾选"加密"（Secret）**：
 
@@ -164,19 +165,9 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 |---|---|---|
 | `MASTER_KEY` | 一段随机字符串 | 用于加密 D1 里存的登录密码哈希、GitHub 仓库/Token、Worker URL、上报密钥，并派生登录态签名密钥。建议 32 位以上随机串，比如终端跑 `openssl rand -hex 32` |
 
-登录密码、GitHub 仓库地址、GitHub PAT、Worker URL、`REPORT_TOKEN` 这些都**不需要**在 Cloudflare 后台手动配置了，全部改成第一次打开网页时在线填写（见 3.7 节），加密后存进 D1 的 `system_config` 表。`MASTER_KEY` 是唯一的密钥，丢失意味着 D1 里所有加密的配置都无法解密，需要清空 `system_config` 表重新走一遍初始化流程（详见第 5 节）。
+第一次打开网页时在线填写（见 3.7 节）登录密码、GitHub 仓库地址、GitHub PAT、Worker URL、`REPORT_TOKEN` ，加密后存进 D1 的 `system_config` 表。`MASTER_KEY` 是唯一的密钥，丢失意味着 D1 里所有加密的配置都无法解密，需要清空 `system_config` 表重新走一遍初始化流程（详见第 5 节）。
 
-### 3.5 把 workflow 放进 GitHub 仓库
-
-在你 3.2 节用到的那个 GitHub 仓库里，建这个路径的文件：
-
-```
-.github/workflows/build-openwrt.yml
-```
-
-把 `build-openwrt.yml` 的内容整个放进去，提交。
-
-### 3.6 配置 GitHub 仓库的 Secrets
+### 3.5 配置 GitHub 仓库的 Secrets
 
 进该仓库 Settings → Secrets and variables → Actions → **Secrets** 标签下添加：
 
@@ -186,15 +177,11 @@ Worker 的 Settings → Bindings → 新增一个 D1 database binding：
 | `TTYD_USER` | 网页终端的登录用户名，自己定，比如 `admin` |
 | `TTYD_PASS` | 网页终端的登录密码，自己定，建议用随机串 |
 
-`TTYD_USER`/`TTYD_PASS` 是干什么用的：手动触发编译时，GitHub Actions 虚拟机里会跑一个叫 `ttyd` 的网页终端程序，把 `make menuconfig` 的操作界面通过 `cloudflared` 临时隧道暴露到公网上，这样你才能在浏览器里直接操作勾选插件。这两个值就是这个临时网页终端的登录用户名和密码——`ttyd` 启动时会用 `--credential "$TTYD_USER:$TTYD_PASS"` 加上这层 Basic Auth 保护，避免别人猜到那个随机域名就能直接进来操作你的终端。这两个值完全由你自己定义，不需要跟 Worker 那边的任何配置对应，只要保证 GitHub 仓库这边设置过就行；并且只在触发编译那次的 Actions 运行环境里使用，不会被持久化存储到任何数据库。
+`TTYD_USER`/`TTYD_PASS` ：手动触发编译时，GitHub Actions 虚拟机里会跑 `ttyd` 程序，把 `make menuconfig` 的操作界面通过 `cloudflared` 临时隧道暴露到公网上，实现浏览器里直接操作勾选插件。这两个值作为临时网页终端的登录用户名和密码——`ttyd` 启动时会用 `--credential "$TTYD_USER:$TTYD_PASS"` 加上这层 Basic Auth 保护，避免别人猜到那个随机域名就能直接进来操作你的终端。这两个值完全由你自己定义，不需要跟 Worker 那边的任何配置对应，只要保证 GitHub 仓库这边设置过就行；并且只在触发编译那次的 Actions 运行环境里使用，不会被持久化存储到任何数据库。
 
-GitHub 侧不再需要配置任何 **Variables**——原来的 `WORKER_URL` 现在由 Worker 在触发编译时自动下发，不用你手动维护。
+### 3.6 网页端：系统初始化 + 部署向导
 
-仓库自带的 `GITHUB_TOKEN`（用于发布 Release）不需要你手动配置，Actions 运行时会自动注入，只要仓库的 Actions 权限里"Workflow permissions"设置成至少有 "Read and write permissions" 即可（仓库 Settings → Actions → General → Workflow permissions）。这个跟你在 2.1 节创建、填进部署向导的那个 GitHub PAT 是两套完全不同的凭证：`GITHUB_TOKEN` 是 GitHub 在每次 Actions 运行时临时生成、自动注入、运行结束就失效的内置令牌，只在仓库内部使用（比如这里发布 Release）；你创建的 PAT 则是从外部（Worker）发起 `repository_dispatch` 来触发这个仓库的 workflow，必须是长期有效、你自己持有的凭证，两者不能互相替代。
-
-### 3.7 网页端：系统初始化 + 部署向导
-
-前面几步做完后，打开 Worker 的访问地址，会看到"系统初始化"页面（因为 D1 里还没有任何密码记录）：
+打开 Worker 的访问地址，会看到"系统初始化"页面：
 
 1. **设置登录密码**：填两遍密码（至少 6 位），提交后自动登录，进入"部署向导"页
 2. **部署向导**填三项：
@@ -207,25 +194,11 @@ GitHub 侧不再需要配置任何 **Variables**——原来的 `WORKER_URL` 现
 
 至此部署全部完成，可以建模板触发编译了。
 
-### 3.8（可选）配置定时编译的 Cron Triggers
+### 3.7 部署完成，验证一下
 
-如果你打算用定时编译功能，需要在 Worker 的 Settings → Triggers → Cron Triggers 里手动加 cron 表达式。
+如果初始化和向导都顺利走完，并且看到了空的"编译模板"列表，就说明 Worker、D1、GitHub 三边都通了。
 
-免费版最多 3 条。比如想要每天凌晨 2 点（UTC）跑一次：
-
-```
-0 2 * * *
-```
-
-> 这里加的 cron 表达式，必须跟你后面在某个模板"定时编译"设置里填的 cron 表达式**逐字符一致**，Worker 是按字符串精确匹配 cron 找模板的，差一个空格都不算匹配。
->
-> 注意 Cloudflare Cron 的时间是 **UTC 时间**，换算成北京时间要 +8 小时。`0 2 * * *`（UTC 2:00）等于北京时间上午 10 点。
-
-### 3.9 部署完成，验证一下
-
-如果 3.7 节的初始化和向导都顺利走完，并且看到了空的"编译模板"列表，就说明 Worker、D1、GitHub 三边都通了。
-
-如果打开 Worker 地址后**没有**看到初始化页，而是直接报错或空白，通常是 D1 没绑定好（检查变量名是否为 `DB`）或 worker.js 粘贴时被截断了，见第 6 节排查。
+如果打开 Worker 地址后**没有**看到初始化页，而是直接报错或空白，通常是 D1 没绑定好（检查变量名是否为 `DB`）或 index.js 粘贴时被截断了，见第 6 节排查。
 
 GitHub Actions 那边的连通性要等你真正触发一次编译才能验证，见下面第 4 节。
 
