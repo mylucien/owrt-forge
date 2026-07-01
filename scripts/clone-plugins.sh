@@ -43,26 +43,34 @@ resolve_auth() {
   printf '%s\n%s\n' "$clean_url" "$token"
 }
 
-# 用 HTTP header 方式鉴权做克隆：令牌不会出现在 URL / 命令行参数里，
-# 克隆完成后主动清掉可能残留的 extraheader 配置，避免凭据落地磁盘。
-# 注意：这里不清理 .git 目录——稀疏克隆流程紧接着还要用 .git 做
-# sparse-checkout，提前删掉会导致 "fatal: not a git repository"。
-# .git 的清理交给各调用方按自己的需要处理（见下方两处调用）。
+# 用 HTTP header 方式鉴权做克隆。
+# 关键点：git clone 命令行上的 `-c http.extraheader=...` 只对这一次 clone
+# 请求生效，并不会被自动写进新仓库的 .git/config（已用公开仓库实测确认，
+# 跟一些资料里"clone -c 会持久化到新仓库"的笼统说法不一致，这里以实测为准）。
+# 而稀疏/部分克隆（--filter=blob:none）后面 git sparse-checkout set 触发的
+# 二次 fetch 是一个全新的、独立的 git 进程，不会继承那个一次性 -c 参数——
+# 如果不显式把凭据写进这份克隆自己的 .git/config，二次 fetch 对私有仓库
+# 就会因为零凭据而报 "could not read Username" / "could not fetch ... from
+# promisor remote"。所以这里克隆完之后额外用一条独立的 git config 命令把
+# 凭据显式落进这份克隆的本地配置，让同目录下后续的 git 操作都能自动复用。
 authed_clone() {
   local clean_url="$1" token="$2" target="$3"; shift 3
   local extra_header=()
+  local basic=""
 
   if [ -n "$token" ]; then
-    local basic
     basic=$(printf '%s' "x-access-token:${token}" | base64 -w0)
     extra_header=(-c "http.extraheader=Authorization: Basic ${basic}")
   fi
 
   git "${extra_header[@]}" clone "$@" "$clean_url" "$target"
 
-  # extraheader 有可能被 git clone 一并写进新仓库的本地配置，
-  # 不管有没有用到都统一清一遍，杜绝凭据落地磁盘。
-  git -C "$target" config --unset-all http.extraheader 2>/dev/null || true
+  if [ -n "$token" ]; then
+    # 显式落盘进这份克隆自己的 .git/config，供后续（如 sparse-checkout
+    # 触发的二次 fetch）同仓库内的 git 操作自动复用，直到这份克隆整个
+    # 被删除（sparse 场景删临时目录，full 场景删 .git）为止。
+    git -C "$target" config "http.extraheader" "Authorization: Basic ${basic}"
+  fi
 }
 
 function git_sparse_clone() {
@@ -75,7 +83,7 @@ function git_sparse_clone() {
 
   cd "$repodir" && git sparse-checkout set "$@"
   mv -f "$@" ../package/
-  # 临时克隆目录（含 .git、含任何可能残留的凭据配置）整个删掉，
+  # 临时克隆目录（含 .git、含刚才显式写入的凭据配置）整个删掉，
   # 不需要像整仓克隆那样单独处理 .git。
   cd .. && rm -rf "$repodir"
 }
