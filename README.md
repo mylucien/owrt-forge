@@ -48,7 +48,7 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
 
 ### 2.1 创建 GitHub Personal Access Token
 
-这个 Token 会在 3.7 节的部署向导里填进去，作用是让 Worker 能代表你去触发编译、发布 Release、取消任务。两种类型选一种即可：
+两种类型选一种即可：
 
 **方式一：fine-grained token（推荐，权限范围更小更安全）**
 
@@ -70,7 +70,7 @@ Worker 自己不编译任何东西，只负责存配置、点火、收结果。�
 4. **Select scopes**：只需要勾选最顶层的 **`repo`** 这一个大类（会自动包含读写代码、发 dispatch 事件、创建 Release、取消 workflow 等所有需要的子权限），其余都不用勾
 5. 点 "Generate token"，立刻复制
 
-两种方式生成的字符串都形如 `ghp_xxxxx` 或 `github_pat_xxxxx`，先存到安全的地方（比如密码管理器），等 3.7 节部署向导里会用到。
+两种方式生成的字符串都形如 `ghp_xxxxx` 或 `github_pat_xxxxx`，先存到安全的地方（比如密码管理器）。
 
 ---
 
