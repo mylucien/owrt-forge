@@ -254,7 +254,7 @@ GitHub Actions 那边的连通性要等你真正触发一次编译才能验证�
 
 之后到了设定的时间点，Cloudflare 会自动触发一次编译，跳过 menuconfig 直接用你选的版本编译完发布。
 
-> 别忘了第 3.8 节提到的：这里填的 cron 表达式要跟 Worker Cron Triggers 里加的那条**完全一致**才会被触发到。
+> 这里填的 cron 表达式要跟 Worker Cron Triggers 里加的那条**完全一致**才会被触发到。
 
 ### 4.5 管理 `.config` 版本历史
 
