@@ -45,3 +45,4 @@ curl -sf -X POST "$WORKER_URL/api/report/dotconfig" \
   --data-binary @/tmp/dotconfig_payload.json
 
 echo "✅ .config 已推送（$PUSHED_KIND）"
+echo "menuconfig：已推送${PUSHED_KIND}配置（见「查看最终配置」）" >> /tmp/build-notes || true

@@ -299,6 +299,23 @@ function json(data, status = 200, extraHeaders = {}) {
   // ============================================================
   // 模板 API：CRUD
   // ============================================================
+  // ---------- ccache 缓存：发布到编译仓库的 Release（cache-<build_id>），下次编译可恢复 ----------
+  const CACHE_KEEP = 2;                          // 只保留最新 2 份；scripts/cache.sh 里的 KEEP 要和这里一致
+  const CACHE_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+  const CACHE_TAG_RE = /^cache-[A-Za-z0-9_-]{8,64}$/;
+
+  // 把「使用缓存」选项解析成要恢复的缓存 Release tag；没有可用缓存返回 null（编译照常进行，只是不用缓存）
+  async function resolveCacheFrom(env, target, want) {
+    if (!want) return null;
+    if (want === 'latest') {
+      const r = await env.DB.prepare('SELECT cache_tag FROM builds WHERE cache_tag IS NOT NULL AND target = ? ORDER BY cache_at DESC LIMIT 1').bind(target || '').first();
+      return r ? r.cache_tag : null;
+    }
+    if (!CACHE_ID_RE.test(String(want))) return null;
+    const r = await env.DB.prepare('SELECT cache_tag FROM builds WHERE id = ? AND cache_tag IS NOT NULL').bind(String(want)).first();
+    return r ? r.cache_tag : null;
+  }
+
   function serializeTemplate(row) {
     if (!row) return null;
     return {
@@ -308,12 +325,14 @@ function json(data, status = 200, extraHeaders = {}) {
       packages: safeJsonParse(row.packages, []),
       selection: safeJsonParse(row.selection, []),
       menuconfig: !!row.menuconfig,
+      cache_use: row.cache_use || '',
+      cache_publish: !!row.cache_publish,
     };
   }
   
   async function handleListTemplates(request, env) {
     const { results } = await env.DB.prepare(
-      `SELECT id, name, repo_url, branch, target, plugins, profile, packages, selection, project_id, menuconfig, pin_dotconfig_version_id, dotconfig_version_id, schedule_cron, schedule_enabled, schedule_dotconfig_version_id, created_at, updated_at FROM templates ORDER BY updated_at DESC`
+      `SELECT id, name, repo_url, branch, target, plugins, profile, packages, selection, project_id, menuconfig, pin_dotconfig_version_id, dotconfig_version_id, schedule_cron, schedule_enabled, schedule_dotconfig_version_id, cache_use, cache_publish, created_at, updated_at FROM templates ORDER BY updated_at DESC`
     ).all();
     return json({ templates: results.map(serializeTemplate) });
   }
@@ -417,6 +436,14 @@ function json(data, status = 200, extraHeaders = {}) {
     const projectId = body.project_id !== undefined ? ((body.project_id && PROJECT_ID_RE.test(body.project_id)) ? body.project_id : null) : (existing.project_id || null);
     const menuconfig = body.menuconfig !== undefined ? (body.menuconfig ? 1 : 0) : (existing.menuconfig ? 1 : 0);
 
+    let cacheUse = existing.cache_use || '';
+    if (body.cache_use !== undefined) {
+      const v = String(body.cache_use || '');
+      if (v && v !== 'latest' && !CACHE_ID_RE.test(v)) return err('缓存选项格式错误');
+      cacheUse = v;
+    }
+    const cachePublish = body.cache_publish !== undefined ? (body.cache_publish ? 1 : 0) : (existing.cache_publish ? 1 : 0);
+
     // 配置底稿：null = 不固定（每次按清单重新生成）；填版本 id = 固定为该版本。手动编译和定时编译共用这一个设置
     let pin = existing.pin_dotconfig_version_id || null;
     let schedVersion = existing.schedule_dotconfig_version_id || null;
@@ -432,9 +459,9 @@ function json(data, status = 200, extraHeaders = {}) {
     }
 
     await env.DB.prepare(
-      `UPDATE templates SET name=?, repo_url=?, branch=?, target=?, plugins=?, diy_script_1=?, diy_script_2=?, packages=?, selection=?, profile=?, project_id=?, menuconfig=?, pin_dotconfig_version_id=?, schedule_dotconfig_version_id=?, updated_at=? WHERE id=?`
+      `UPDATE templates SET name=?, repo_url=?, branch=?, target=?, plugins=?, diy_script_1=?, diy_script_2=?, packages=?, selection=?, profile=?, project_id=?, menuconfig=?, pin_dotconfig_version_id=?, schedule_dotconfig_version_id=?, cache_use=?, cache_publish=?, updated_at=? WHERE id=?`
     )
-      .bind(name, repo_url, branch, target, plugins, diy_script_1, diy_script_2, packages, selection, profile, projectId, menuconfig, pin, schedVersion, now(), id)
+      .bind(name, repo_url, branch, target, plugins, diy_script_1, diy_script_2, packages, selection, profile, projectId, menuconfig, pin, schedVersion, cacheUse || null, cachePublish, now(), id)
       .run();
 
     const row = await env.DB.prepare('SELECT * FROM templates WHERE id = ?').bind(id).first();
@@ -873,8 +900,10 @@ function json(data, status = 200, extraHeaders = {}) {
       await env.DB.prepare("UPDATE builds SET status='failed', fail_reason=?, updated_at=? WHERE id=?").bind('机型 profile 格式非法', now(), buildId).run();
       return err('机型 profile 格式非法', 400);
     }
-    await env.DB.prepare('UPDATE builds SET packages=?, profile=?, menuconfig=? WHERE id=?')
-      .bind(JSON.stringify(packages), profile, wantMenuconfig, buildId).run();
+    const cacheFrom = await resolveCacheFrom(env, tpl.target, body.cache_use !== undefined ? body.cache_use : tpl.cache_use);
+    const cachePublish = body.cache_publish !== undefined ? !!body.cache_publish : !!tpl.cache_publish;
+    await env.DB.prepare('UPDATE builds SET packages=?, profile=?, menuconfig=?, cache_from=?, cache_publish=?, use_ccache=? WHERE id=?')
+      .bind(JSON.stringify(packages), profile, wantMenuconfig, cacheFrom, cachePublish ? 1 : 0, (cacheFrom || cachePublish) ? 1 : 0, buildId).run();
 
     try {
       await dispatchGithubWorkflow(env, buildId);
@@ -899,7 +928,10 @@ function json(data, status = 200, extraHeaders = {}) {
     const { results } = await env.DB.prepare(
       `SELECT id, template_id, repo_url, branch, target, profile, dotconfig_version_id, trigger_type, schedule_cron, status,
               CASE WHEN status='menuconfig' THEN web_url END AS web_url,
-              download_url, fail_reason, log_tail, created_at, updated_at
+              download_url, fail_reason, log_tail, created_at, updated_at,
+              use_ccache, cache_publish, cache_from, cache_tag, cache_size,
+              (dotconfig_snapshot IS NOT NULL AND dotconfig_snapshot != '') AS has_snapshot,
+              (dotconfig_result IS NOT NULL AND dotconfig_result != '') AS has_result
        FROM builds ORDER BY created_at DESC LIMIT ?`
     ).bind(limit).all();
     return json({ builds: results });
@@ -983,6 +1015,9 @@ function json(data, status = 200, extraHeaders = {}) {
       packages: safeJsonParse(row.packages, []),
       profile: row.profile || '',
       menuconfig: row.menuconfig !== 0,
+      use_ccache: row.use_ccache === 1,
+      cache_from: (row.cache_from && CACHE_TAG_RE.test(row.cache_from)) ? row.cache_from : '',
+      cache_publish: row.cache_publish === 1,
       worker_url: workerUrl || '',
     });
   }
@@ -1021,6 +1056,42 @@ function json(data, status = 200, extraHeaders = {}) {
 
     await env.DB.prepare(`UPDATE builds SET ${fields.join(', ')} WHERE id=?`).bind(...values).run();
     if (TERMINAL.includes(body.status)) await dispatchNextQueued(env).catch(() => {});
+    return json({ ok: true });
+  }
+
+  // workflow 专用：上报已发布的 ccache 缓存
+  async function handleWorkflowReportCache(request, env) {
+    const body = await request.json().catch(() => null);
+    if (!body || !CACHE_ID_RE.test(String(body.build_id || ''))) return err('缺少 build_id');
+    const tag = String(body.tag || '');
+    if (!CACHE_TAG_RE.test(tag)) return err('tag 格式错误');
+    const size = Math.max(0, Math.floor(Number(body.size) || 0));
+    const row = await env.DB.prepare('SELECT id FROM builds WHERE id = ?').bind(body.build_id).first();
+    if (!row) return err('build 不存在', 404);
+    await env.DB.prepare('UPDATE builds SET cache_tag=?, cache_size=?, cache_at=? WHERE id=?').bind(tag, size, now(), body.build_id).run();
+    // 只保留最新 CACHE_KEEP 份记录（编译仓库里对应的 Release 由 scripts/cache.sh 同步清理）
+    await env.DB.prepare('UPDATE builds SET cache_tag=NULL, cache_size=NULL WHERE cache_tag IS NOT NULL AND id NOT IN (SELECT id FROM builds WHERE cache_tag IS NOT NULL ORDER BY cache_at DESC LIMIT ?)').bind(CACHE_KEEP).run();
+    return json({ ok: true });
+  }
+
+  async function handleListCaches(request, env) {
+    const { results } = await env.DB.prepare(
+      `SELECT b.id, b.template_id, b.target, b.profile, b.cache_tag, b.cache_size, b.cache_at, t.name AS template_name
+       FROM builds b LEFT JOIN templates t ON t.id = b.template_id
+       WHERE b.cache_tag IS NOT NULL ORDER BY b.cache_at DESC LIMIT 10`
+    ).all();
+    return json({ caches: results });
+  }
+
+  // 编译途中切换「完成后发布缓存」。缓存只存在于编译机上，编译结束后就没有了，所以只能在编译结束前设置
+  async function handleSetBuildCachePublish(request, env, id) {
+    const body = await request.json().catch(() => null);
+    if (!body) return err('请求体格式错误');
+    const row = await env.DB.prepare('SELECT status, use_ccache FROM builds WHERE id = ?').bind(id).first();
+    if (!row) return err('编译记录不存在', 404);
+    if (['success', 'failed', 'cancelled'].includes(row.status)) return err('这次编译已经结束，缓存随编译机一起销毁了，无法再发布。想要缓存请在下次编译前勾选「编译完成后发布缓存」', 409);
+    if (!row.use_ccache) return err('这次编译没有启用 ccache，没有缓存可发布。请在模板的编译选项里选择使用缓存或勾选发布缓存后重新编译', 409);
+    await env.DB.prepare('UPDATE builds SET cache_publish=?, updated_at=? WHERE id=?').bind(body.enabled ? 1 : 0, now(), id).run();
     return json({ ok: true });
   }
 
@@ -1108,7 +1179,9 @@ function json(data, status = 200, extraHeaders = {}) {
         )
         .run();
   
-      await env.DB.prepare('UPDATE builds SET packages=?, profile=?, menuconfig=0 WHERE id=?').bind(template.packages || '[]', template.profile || null, buildId).run();
+      const cacheFrom = await resolveCacheFrom(env, template.target, template.cache_use);
+      const cachePublish = !!template.cache_publish;
+      await env.DB.prepare('UPDATE builds SET packages=?, profile=?, menuconfig=0, cache_from=?, cache_publish=?, use_ccache=? WHERE id=?').bind(template.packages || '[]', template.profile || null, cacheFrom, cachePublish ? 1 : 0, (cacheFrom || cachePublish) ? 1 : 0, buildId).run();
       if (busy) { await env.DB.prepare("UPDATE builds SET status='queued' WHERE id=?").bind(buildId).run(); continue; }
 
       try {
@@ -1282,6 +1355,15 @@ function json(data, status = 200, extraHeaders = {}) {
       'ALTER TABLE builds ADD COLUMN fail_reason TEXT',
       'ALTER TABLE builds ADD COLUMN log_tail TEXT',
       'ALTER TABLE builds ADD COLUMN github_run_id TEXT',
+      // ccache 缓存：use_ccache=本次编译是否启用；cache_from=要恢复的缓存 Release tag；cache_publish=完成后是否发布；cache_tag/size/at=本次已发布的缓存
+      'ALTER TABLE builds ADD COLUMN use_ccache INTEGER DEFAULT 0',
+      'ALTER TABLE builds ADD COLUMN cache_publish INTEGER DEFAULT 0',
+      'ALTER TABLE builds ADD COLUMN cache_from TEXT',
+      'ALTER TABLE builds ADD COLUMN cache_tag TEXT',
+      'ALTER TABLE builds ADD COLUMN cache_size INTEGER',
+      'ALTER TABLE builds ADD COLUMN cache_at INTEGER',
+      'ALTER TABLE templates ADD COLUMN cache_use TEXT',
+      'ALTER TABLE templates ADD COLUMN cache_publish INTEGER DEFAULT 0',
     ];
     for (const q of ddl) await env.DB.prepare(q).run();
     for (const q of alters) { try { await env.DB.prepare(q).run(); } catch (e) { /* 列已存在 */ } }
@@ -2001,6 +2083,8 @@ function json(data, status = 200, extraHeaders = {}) {
     trigger(body) { return this.post('/api/trigger', body); },
     listBuilds() { return this.get('/api/builds'); },
     getBuild(id) { return this.get(\`/api/builds/\${id}\`); },
+    listCaches() { return this.get('/api/caches'); },
+    setCachePublish(id, enabled) { return this.post(\`/api/builds/\${id}/cache-publish\`, { enabled }); },
     cancelBuild(id) { return this.post(\`/api/builds/\${id}/cancel\`); },
   };
   
@@ -2687,6 +2771,41 @@ function json(data, status = 200, extraHeaders = {}) {
       try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: e.target.value }); toast(e.target.value ? '已固定配置底稿' : '已取消固定', 'success'); refreshTemplateDetail(tpl.id); }
       catch (err) { reportApiError(err, '保存失败'); }
     });
+    renderCacheOptions(wrap, tpl);
+  }
+
+  function renderCacheOptions(wrap, tpl) {
+    const box = el('<div class="field" style="margin:14px 0 0"><label>编译缓存（ccache）</label>'
+      + '<select id="opt-cache-use"><option value="">不使用缓存</option><option value="latest">使用同平台最新的缓存</option></select>'
+      + '<label class="st-opt" style="margin-top:10px"><input type="checkbox" id="opt-cache-pub"' + (tpl.cache_publish ? ' checked' : '') + '><span>编译完成后发布缓存<small>把这次编译的 ccache 打包发布到编译仓库的 Release，下次编译可以选择使用。最多保留最新 2 份，体积以实际为准（一般不超过 2 GB）。</small></span></label>'
+      + '<div class="hint">缓存只能加速重复的编译，机型或插件变化大时命中会变少；第一次发布缓存的那次编译不会更快，还会多花几分钟打包上传。缓存存放在你编译仓库的 Release 里，仓库是公开的话任何人都能下载。缓存只存在于编译机上，所以必须在编译开始前勾选，或在编译进行中点构建记录上的「完成后发布缓存」。</div></div>');
+    wrap.appendChild(box);
+    const sel = qs(box, '#opt-cache-use');
+    sel.value = (tpl.cache_use === 'latest') ? 'latest' : '';
+    api.listCaches().then(({ caches }) => {
+      (caches || []).forEach((c) => {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = '指定：' + fmtTime(c.cache_at) + ' · ' + (c.template_name || '已删除的模板') + ' · ' + c.target + ' · ' + fmtCacheSize(c.cache_size);
+        sel.appendChild(o);
+      });
+      if (tpl.cache_use && tpl.cache_use !== 'latest') {
+        if (!(caches || []).some((c) => c.id === tpl.cache_use)) {
+          const o = document.createElement('option');
+          o.value = tpl.cache_use; o.textContent = '指定的缓存已被清理（编译时不使用缓存）';
+          sel.appendChild(o);
+        }
+        sel.value = tpl.cache_use;
+      }
+    }).catch(() => {});
+    sel.addEventListener('change', async (e) => {
+      try { await api.updateTemplate(tpl.id, { cache_use: e.target.value }); toast(e.target.value ? '下次编译将使用缓存' : '下次编译不使用缓存', 'success'); }
+      catch (err) { reportApiError(err, '保存失败'); }
+    });
+    qs(box, '#opt-cache-pub').addEventListener('change', async (e) => {
+      try { await api.updateTemplate(tpl.id, { cache_publish: e.target.checked }); toast(e.target.checked ? '编译完成后将发布缓存' : '编译完成后不发布缓存', 'success'); }
+      catch (err) { reportApiError(err, '保存失败'); e.target.checked = !e.target.checked; }
+    });
   }
   
   async function exportTemplate(tpl) {
@@ -2825,6 +2944,44 @@ function json(data, status = 200, extraHeaders = {}) {
       }
     });
     return overlay;
+  }
+  
+  function fmtCacheSize(n) {
+    n = Number(n) || 0;
+    return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1048576)) + ' MB';
+  }
+  
+  function renderCacheNote(b) {
+    let h = '';
+    if (b.cache_from) h += '<span class="badge dim">使用缓存</span>';
+    if (b.cache_tag) h += '<span class="badge dim">已发布缓存 ' + fmtCacheSize(b.cache_size) + '</span>';
+    if (ACTIVE_BUILD_STATUSES.includes(b.status) && b.use_ccache) {
+      h += '<button class="ghost small cache-pub-btn" data-on="' + (b.cache_publish ? '1' : '0') + '" title="缓存只存在于编译机上，必须在编译结束前设置">' + (b.cache_publish ? '✓ 完成后发布缓存（点击取消）' : '完成后发布缓存') + '</button>';
+    }
+    return h;
+  }
+  
+  function renderBuildNote(b) {
+    const failed = b.status === 'failed';
+    let html = '';
+    if (failed && b.fail_reason) html += '<div class="hint" style="width:100%;color:var(--bad);">失败原因：' + escapeHtml(b.fail_reason) + '</div>';
+    const detail = [failed ? '' : b.fail_reason, b.log_tail].filter(Boolean).join('\\n');
+    if (detail) html += '<details style="width:100%"><summary class="hint">' + (failed ? '失败详情和处理建议' : '构建说明') + '</summary><pre class="fail-log">' + escapeHtml(detail) + '</pre></details>';
+    return html;
+  }
+  
+  async function viewBuildConfig(buildId, kind) {
+    const title = kind === 'result' ? '最终配置（menuconfig 保存退出时推送的内容）' : '触发时的配置底稿（固定版本的内容）';
+    return openModal('<div class="modal-box" style="max-width:700px;"><div class="modal-head"><h3>' + title + '</h3><button class="ghost small" data-close>✕</button></div><div class="modal-body"><div class="code-view" id="cfg-view">加载中...</div></div><div class="modal-foot"><button data-close>关闭</button></div></div>', {
+      async onMount(root) {
+        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
+        try {
+          const { build } = await api.getBuild(buildId);
+          const text = kind === 'result' ? build.dotconfig_result : build.dotconfig_snapshot;
+          qs(root, '#cfg-view').textContent = text || '（没有记录）';
+        } catch (e) { qs(root, '#cfg-view').textContent = '加载失败：' + e.message; }
+      }
+    });
   }
   
   async function downloadVersionContent(tplId, vid) {
@@ -3028,10 +3185,28 @@ function json(data, status = 200, extraHeaders = {}) {
       <div class="links">
         \${b.web_url ? \`<a href="\${escapeHtml(b.web_url)}" target="_blank" rel="noopener">打开网页终端 →</a>\` : ''}
         \${b.download_url ? \`<a href="\${escapeHtml(b.download_url)}" target="_blank" rel="noopener">下载产物 →</a>\` : ''}
-        \${b.fail_reason || b.log_tail ? \`<details style="width:100%"><summary class="hint">失败原因</summary><pre class="fail-log">\${escapeHtml((b.fail_reason || '') + ' ' + (b.log_tail || ''))}</pre></details>\` : ''}
+        \${renderCacheNote(b)}
+        \${renderBuildNote(b)}
+        \${b.has_snapshot ? '<button class="ghost small view-cfg-btn" data-kind="snapshot">查看底稿</button>' : ''}
+        \${b.has_result ? '<button class="ghost small view-cfg-btn" data-kind="result">查看最终配置</button>' : ''}
         \${ACTIVE_BUILD_STATUSES.includes(b.status) ? \`<button class="ghost small cancel-build-btn" style="color:var(--bad);margin-left:auto;">取消编译</button>\` : ''}
       </div>
     </div>\`).join('');
+    qsa(area, '.cache-pub-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
+        if (!buildId) return;
+        btn.disabled = true;
+        try { await api.setCachePublish(buildId, btn.dataset.on !== '1'); toast(btn.dataset.on === '1' ? '已取消发布缓存' : '编译完成后将发布缓存', 'success'); loadBuildsList(); }
+        catch (e) { reportApiError(e, '设置失败'); btn.disabled = false; }
+      });
+    });
+    qsa(area, '.view-cfg-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
+        if (buildId) viewBuildConfig(buildId, btn.dataset.kind);
+      });
+    });
     qsa(area, '.cancel-build-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
@@ -3595,6 +3770,10 @@ function json(data, status = 200, extraHeaders = {}) {
       if (!(await requireReportToken(request, env))) return err('unauthorized', 401);
       return handleWorkflowReport(request, env);
     }
+    if (path === '/api/report/cache' && method === 'POST') {
+      if (!(await requireReportToken(request, env))) return err('unauthorized', 401);
+      return handleWorkflowReportCache(request, env);
+    }
     if (path === '/api/report/dotconfig' && method === 'POST') {
       if (!(await requireReportToken(request, env))) return err('unauthorized', 401);
       return handleWorkflowReportDotconfig(request, env);
@@ -3670,6 +3849,7 @@ function json(data, status = 200, extraHeaders = {}) {
     if (path === '/api/custom-plugins/detect' && method === 'POST') return handleDetectCustomPlugin(request, env);
     const cpm = path.match(/^\/api\/custom-plugins\/([A-Za-z0-9_.+-]+)$/);
     if (cpm && method === 'DELETE') return handleDeleteCustomPlugin(env, cpm[1]);
+    if (path === '/api/caches' && method === 'GET') return handleListCaches(request, env);
     if (path === '/api/trigger' && method === 'POST') return handleTrigger(request, env);
     if (path === '/api/builds' && method === 'GET') return handleListBuilds(request, env, url);
     {
@@ -3679,6 +3859,10 @@ function json(data, status = 200, extraHeaders = {}) {
     {
       const m = path.match(/^\/api\/builds\/([^/]+)\/cancel$/);
       if (m && method === 'POST') return handleCancelBuild(request, env, decodeURIComponent(m[1]));
+    }
+    {
+      const m = path.match(/^\/api\/builds\/([^/]+)\/cache-publish$/);
+      if (m && method === 'POST') return handleSetBuildCachePublish(request, env, decodeURIComponent(m[1]));
     }
   
     return err('not found', 404);

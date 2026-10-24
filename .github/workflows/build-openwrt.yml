@@ -47,7 +47,7 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
           sudo apt-get update -q
-          sudo apt-get install -y build-essential clang flex bison g++ gawk gettext git libncurses-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget jq curl
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gettext git libncurses-dev libssl-dev python3-setuptools rsync swig unzip zlib1g-dev file wget jq curl zstd
           df -h /
 
       - name: 克隆主源码
@@ -67,7 +67,10 @@ jobs:
         run: bash "$SCRIPTS_DIR/clone-plugins.sh"
 
       - name: feeds install
-        run: cd openwrt && ./scripts/feeds install -a
+        run: |
+          cd openwrt && ./scripts/feeds install -a
+          # 记录本次实际用到的源码和 feeds 版本（feeds 没有锁定，每次都拉最新）
+          { echo "源码 $(git rev-parse --short=8 HEAD)"; for d in feeds/*/; do [ -d "$d/.git" ] && echo "feeds $(basename "$d") @ $(git -C "$d" rev-parse --short=8 HEAD)"; done; } > /tmp/build-notes || true
 
       - name: 自定义脚本②（feeds install 之后）
         run: |
@@ -115,12 +118,34 @@ jobs:
           REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
         run: bash "$SCRIPTS_DIR/report.sh" "$BUILD_ID" compiling
 
+      - name: 恢复编译缓存（ccache）
+        if: steps.config.outputs.cache_from != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: "${{ github.token }}"
+          CACHE_TAG: "${{ steps.config.outputs.cache_from }}"
+        run: bash "$SCRIPTS_DIR/cache.sh" restore
+
       - name: 编译
+        id: make
+        env:
+          USE_CCACHE: "${{ steps.config.outputs.use_ccache }}"
+          CCACHE_MAXSIZE: "3G"
+          CCACHE_COMPILERCHECK: "content"
         run: |
           cd openwrt
           set -o pipefail
+          # 启用 ccache 才改 .config（放在 menuconfig 之后，不会被 menuconfig 推送进保存的配置版本）
+          if [ "$USE_CCACHE" = "true" ]; then
+            grep -q '^CONFIG_CCACHE=y' .config || { echo 'CONFIG_CCACHE=y' >> .config; make defconfig > /dev/null; }
+          fi
           env -u REPORT_TOKEN -u WORKER_URL make download -j8 2>&1 | tee /tmp/make.log
           (env -u REPORT_TOKEN -u WORKER_URL make -j"$(nproc)" || env -u REPORT_TOKEN -u WORKER_URL make -j1 V=s) 2>&1 | tee -a /tmp/make.log
+
+      - name: ccache 统计
+        if: ${{ !cancelled() && steps.make.outcome != 'skipped' && steps.config.outputs.use_ccache == 'true' }}
+        continue-on-error: true
+        run: bash "$SCRIPTS_DIR/cache.sh" stats
 
       - name: 打包产物
         run: bash "$SCRIPTS_DIR/package-artifacts.sh"
@@ -135,11 +160,21 @@ jobs:
             openwrt/bin/targets/**/*factory*
             *-packages.tar.gz
 
+      - name: 发布编译缓存（ccache）
+        if: ${{ !cancelled() && steps.make.outcome != 'skipped' && steps.config.outputs.use_ccache == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: "${{ github.token }}"
+          BUILD_ID: "${{ steps.config.outputs.build_id }}"
+          REPORT_TOKEN: "${{ secrets.REPORT_TOKEN }}"
+        run: bash "$SCRIPTS_DIR/cache.sh" publish
+
       - name: 清理旧 Release（保留最近 10 个）
         if: success()
         env:
           GH_TOKEN: "${{ github.token }}"
-        run: gh release list --limit 100 --json tagName --jq '.[10:][].tagName' | xargs -r -I{} gh release delete {} --cleanup-tag --yes
+        # 只清理 build- 开头的固件 Release，缓存 Release（cache-）由缓存发布步骤自己管理
+        run: gh release list --limit 100 --json tagName --jq '[.[] | select(.tagName | startswith("build-"))] | .[10:][].tagName' | xargs -r -I{} gh release delete {} --cleanup-tag --yes
 
       - name: 上报：完成
         if: always()

@@ -28,3 +28,7 @@ fi
 
 # 新增：是否需要进入 menuconfig（商店直编或定时任务为 false）
 echo "menuconfig=$(jq -r 'if .menuconfig == false or .trigger_type == "scheduled" then "false" else "true" end' config.json)" >> "$GITHUB_OUTPUT"
+
+# ccache 缓存：要恢复的缓存 Release tag（空 = 不恢复）；本次是否启用 ccache
+echo "cache_from=$(jq -r '.cache_from // ""' config.json)" >> "$GITHUB_OUTPUT"
+echo "use_ccache=$(jq -r 'if .use_ccache == true then "true" else "false" end' config.json)" >> "$GITHUB_OUTPUT"
