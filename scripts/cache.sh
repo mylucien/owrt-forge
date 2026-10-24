@@ -14,7 +14,7 @@ set -uo pipefail
 
 KEEP=2
 PART_SIZE="${CACHE_PART_SIZE:-1900M}"   # 1900MiB < 2GiB 的单文件上限；CACHE_PART_SIZE 仅供测试
-MAX_PARTS=2
+MAX_PARTS=8
 CDIR=openwrt/.ccache
 NOTES=/tmp/build-notes
 note() { echo "$*" >> "$NOTES"; echo "$*"; }
