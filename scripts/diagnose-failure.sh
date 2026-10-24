@@ -8,6 +8,8 @@ LOG="${1:-/tmp/make.log}"
 : > /tmp/fail-reason; : > /tmp/fail-hints
 [ -s "$LOG" ] || exit 0
 
+# 按「字符」截断（cut -c 是按字节的，会把汉字切成半个而变成乱码）；输入里的非法字节会被替换成 �
+trunc() { jq -Rrs --argjson n "$1" 'rtrimstr("\n") | .[0:$n]'; }
 uniq_join() { sort -u | head -n "${1:-8}" | paste -sd' ' -; }
 reasons=(); hints=()
 
@@ -77,13 +79,13 @@ fi
 # G. configure 阶段明确报「找不到」
 cfg=$(grep -aiE "configure: error: .*(not found|cannot find|can't find|no usable|missing|requires)" "$LOG" | sed -E 's/^.*configure: error: //' | sort -u | head -n 3)
 if [ -n "$cfg" ] && [ -z "$hdr$pc$lib_missing" ]; then
-  reasons+=("configure 报缺少依赖：$(echo "$cfg" | head -n 1 | cut -c1-80)")
+  reasons+=("configure 报缺少依赖：$(echo "$cfg" | head -n 1 | trunc 80)")
   hints+=("【configure 阶段缺依赖】"$'\n'"$(echo "$cfg" | sed 's/^/  - /')"$'\n'"  处理：按提示补上缺的开发库，或把提供它的库包加进插件清单。")
 fi
 
 [ ${#reasons[@]} -gt 0 ] || exit 0
 summary=$(printf '%s；' "${reasons[@]}"); summary="${summary%；}"
 [ -n "$failed_pkgs" ] && summary="$summary（失败的包：$failed_pkgs）"
-printf '%s' "$summary" | cut -c1-450 > /tmp/fail-reason
+printf '%s' "$summary" | trunc 450 > /tmp/fail-reason
 printf '%s\n\n' "${hints[@]}" > /tmp/fail-hints
 exit 0

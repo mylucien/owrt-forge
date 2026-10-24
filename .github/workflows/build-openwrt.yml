@@ -135,10 +135,9 @@ jobs:
         run: |
           cd openwrt
           set -o pipefail
-          # 启用 ccache 才改 .config（放在 menuconfig 之后，不会被 menuconfig 推送进保存的配置版本）
-          if [ "$USE_CCACHE" = "true" ]; then
-            grep -q '^CONFIG_CCACHE=y' .config || { echo 'CONFIG_CCACHE=y' >> .config; make defconfig > /dev/null; }
-          fi
+          # 启用 ccache（放在 menuconfig 之后，不会被 menuconfig 推送进保存的配置版本）。
+          # CONFIG_CCACHE 需要同时打开 CONFIG_DEVEL 才不会被 defconfig 丢弃，详见 enable-ccache.sh
+          if [ "$USE_CCACHE" = "true" ]; then bash "$SCRIPTS_DIR/enable-ccache.sh"; fi
           env -u REPORT_TOKEN -u WORKER_URL make download -j8 2>&1 | tee /tmp/make.log
           (env -u REPORT_TOKEN -u WORKER_URL make -j"$(nproc)" || env -u REPORT_TOKEN -u WORKER_URL make -j1 V=s) 2>&1 | tee -a /tmp/make.log
 

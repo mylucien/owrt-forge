@@ -21,7 +21,7 @@ if [ "$STATUS" = "failed" ]; then
 $TAIL"
   [ -s /tmp/fail-reason ] && REASON="$(cat /tmp/fail-reason)"
 fi
-[ -z "$REASON" ] && [ "$STATUS" = "failed" ] && [ -s /tmp/missing-packages ] && REASON="插件未生效（依赖缺失或源码里没有该包）：$(tr '\n' ' ' </tmp/missing-packages | cut -c1-300)"
+[ -z "$REASON" ] && [ "$STATUS" = "failed" ] && [ -s /tmp/missing-packages ] && REASON="插件未生效（依赖缺失或源码里没有该包）：$(tr '\n' ' ' </tmp/missing-packages | jq -Rrs 'rtrimstr(" ") | .[0:300]')"
 jq -n --arg b "$BUILD_ID" --arg s "$STATUS" --arg u "$URL" --arg t "$TAIL" --arg r "$REASON" \
   '{build_id:$b,status:$s,download_url:$u,log_tail:$t,reason:$r}' | curl -sf -X POST "$WORKER_URL/api/report" \
   -H "X-Report-Token: $REPORT_TOKEN" -H "Content-Type: application/json" --data-binary @-
