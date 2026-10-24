@@ -130,7 +130,7 @@ jobs:
         id: make
         env:
           USE_CCACHE: "${{ steps.config.outputs.use_ccache }}"
-          CCACHE_MAXSIZE: "3G"
+          CCACHE_MAXSIZE: "8G"
           CCACHE_COMPILERCHECK: "content"
         run: |
           cd openwrt
