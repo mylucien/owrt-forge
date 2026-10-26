@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "updated": "2026-10-21",
+ "updated": "2026-10-26",
  "upstream": {
   "repo": "https://github.com/immortalwrt/luci",
   "branch": "openwrt-24.10",
-  "commit": "80ed8a44f244627c5a9f808d09f4c3d8f985b764"
+  "commit": "7f9ad99d611a7548125e73b7e375b6d1793ca1ef"
  },
  "categories": [
   {
@@ -208,7 +208,7 @@
   {
    "id": "luci-app-privoxy",
    "name": "privoxy",
-   "desc": "基于 Privoxy 的网页代理，可过滤广告和隐私追踪。",
+   "desc": "LuCI Support for Privoxy WEB proxy",
    "desc_en": "LuCI Support for Privoxy WEB proxy",
    "cat": "代理",
    "kind": "app",
@@ -229,7 +229,7 @@
   {
    "id": "luci-app-v2raya",
    "name": "v2rayA",
-   "desc": "v2rayA 的图形管理界面，支持多种代理协议。",
+   "desc": "LuCI support for v2rayA",
    "desc_en": "LuCI support for v2rayA",
    "cat": "代理",
    "kind": "app",
@@ -249,7 +249,7 @@
   {
    "id": "luci-app-adblock",
    "name": "Adblock",
-   "desc": "DNS 层面屏蔽广告与恶意域名。",
+   "desc": "LuCI support for Adblock",
    "desc_en": "LuCI support for Adblock",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -269,7 +269,7 @@
   {
    "id": "luci-app-adblock-fast",
    "name": "AdBlock Fast",
-   "desc": "轻量快速的广告屏蔽工具。",
+   "desc": "AdBlock-Fast Web UI",
    "desc_en": "AdBlock-Fast Web UI",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -290,7 +290,7 @@
   {
    "id": "luci-app-arpbind",
    "name": "IP/MAC绑定",
-   "desc": "将 IP 与 MAC 地址绑定，防止 ARP 欺骗。",
+   "desc": "LuCI support for ARP binding",
    "desc_en": "LuCI support for ARP binding",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -310,7 +310,7 @@
   {
    "id": "luci-app-banip",
    "name": "banIP",
-   "desc": "基于 IP 黑名单封锁恶意访问。",
+   "desc": "LuCI support for banIP",
    "desc_en": "LuCI support for banIP",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -330,7 +330,7 @@
   {
    "id": "luci-app-ddns",
    "name": "动态 DNS",
-   "desc": "动态域名解析客户端，支持多种服务商。",
+   "desc": "LuCI Support for Dynamic DNS Client (ddns-scripts)",
    "desc_en": "LuCI Support for Dynamic DNS Client (ddns-scripts)",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -370,7 +370,7 @@
   {
    "id": "luci-app-https-dns-proxy",
    "name": "HTTPS DNS 代理",
-   "desc": "通过 HTTPS 加密 DNS 查询，防止污染。",
+   "desc": "DNS Over HTTPS Proxy Web UI",
    "desc_en": "DNS Over HTTPS Proxy Web UI",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -410,7 +410,7 @@
   {
    "id": "luci-app-unbound",
    "name": "unbound",
-   "desc": "递归 DNS 解析器，可做本地 DNS 缓存与验证。",
+   "desc": "Unbound Recursive DNS Resolver Configuration",
    "desc_en": "Unbound Recursive DNS Resolver Configuration",
    "cat": "DNS 与广告",
    "kind": "app",
@@ -430,7 +430,7 @@
   {
    "id": "luci-app-3ginfo-lite",
    "name": "模块",
-   "desc": "查看 3G/4G/5G 模块信号与连接状态。",
+   "desc": "LuCI JS Support for 3ginfo-lite",
    "desc_en": "LuCI JS Support for 3ginfo-lite",
    "cat": "网络",
    "kind": "app",
@@ -452,7 +452,7 @@
   {
    "id": "luci-app-appfilter",
    "name": "appfilter",
-   "desc": "应用层流量过滤与识别（OAF）。",
+   "desc": "LuCI support for OAF",
    "desc_en": "LuCI support for OAF",
    "cat": "网络",
    "kind": "app",
@@ -472,7 +472,7 @@
   {
    "id": "luci-app-bcp38",
    "name": "BCP38",
-   "desc": "防止 IP 地址伪造的入站过滤（BCP38）。",
+   "desc": "BCP38 LuCI interface",
    "desc_en": "BCP38 LuCI interface",
    "cat": "网络",
    "kind": "app",
@@ -492,7 +492,7 @@
   {
    "id": "luci-app-bmx7",
    "name": "bmx7",
-   "desc": "BMX7 网状路由协议管理界面。",
+   "desc": "LuCI support for BMX7",
    "desc_en": "LuCI support for BMX7",
    "cat": "网络",
    "kind": "app",
@@ -513,8 +513,8 @@
   },
   {
    "id": "luci-app-cd8021x",
-   "name": "802.1X 有线认证",
-   "desc": "有线 IEEE 802.1X 认证客户端。",
+   "name": "Content-Type: text/plain; charset=UTF-8\\n",
+   "desc": "a wired IEEE 802.1x client for Luci",
    "desc_en": "a wired IEEE 802.1x client for Luci",
    "cat": "网络",
    "kind": "app",
@@ -534,7 +534,7 @@
   {
    "id": "luci-app-dawn",
    "name": "DAWN",
-   "desc": "分布式 AP 漫游与负载均衡（DAWN）。",
+   "desc": "LuCI support for DAWN",
    "desc_en": "LuCI support for DAWN",
    "cat": "网络",
    "kind": "app",
@@ -554,7 +554,7 @@
   {
    "id": "luci-app-dcwapd",
    "name": "双通道 WiFi",
-   "desc": "双通道 Wi-Fi AP 守护进程配置。",
+   "desc": "Dual Channel Wi-Fi AP Daemon configuration module",
    "desc_en": "Dual Channel Wi-Fi AP Daemon configuration module",
    "cat": "网络",
    "kind": "app",
@@ -574,7 +574,7 @@
   {
    "id": "luci-app-eoip",
    "name": "EoIP 隧道",
-   "desc": "MikroTik 风格的 EoIP 隧道支持。",
+   "desc": "LuCI Support for EoIP",
    "desc_en": "LuCI Support for EoIP",
    "cat": "网络",
    "kind": "app",
@@ -594,7 +594,7 @@
   {
    "id": "luci-app-eqos",
    "name": "网速控制",
-   "desc": "简单的设备级网速限制（Easy QoS）。",
+   "desc": "LuCI support for Easy QoS",
    "desc_en": "LuCI support for Easy QoS",
    "cat": "网络",
    "kind": "app",
@@ -616,7 +616,7 @@
   {
    "id": "luci-app-haproxy-tcp",
    "name": "haproxy-tcp",
-   "desc": "HAProxy TCP 负载均衡与 Shadowsocks 配合。",
+   "desc": "luci for haproxy and shadowsocks",
    "desc_en": "luci for haproxy and shadowsocks",
    "cat": "网络",
    "kind": "app",
@@ -636,7 +636,7 @@
   {
    "id": "luci-app-lorawan-basicstation",
    "name": "LoRaWAN Basicstation",
-   "desc": "LoRaWAN 基础站配置界面。",
+   "desc": "LuCI Support for LoRaWAN basicstation",
    "desc_en": "LuCI Support for LoRaWAN basicstation",
    "cat": "网络",
    "kind": "app",
@@ -656,7 +656,7 @@
   {
    "id": "luci-app-modemband",
    "name": "Modem",
-   "desc": "调制解调器频段与锁定管理。",
+   "desc": "LuCI JS Support for modemband application",
    "desc_en": "LuCI JS Support for modemband application",
    "cat": "网络",
    "kind": "app",
@@ -696,7 +696,7 @@
   {
    "id": "luci-app-nft-qos",
    "name": "nft-qos",
-   "desc": "基于 nftables 的 QoS 限速。",
+   "desc": "QoS over Nftables",
    "desc_en": "QoS over Nftables",
    "cat": "网络",
    "kind": "app",
@@ -716,7 +716,7 @@
   {
    "id": "luci-app-njitclient",
    "name": "njitclient",
-   "desc": "南理工 802.1X 校园网客户端。",
+   "desc": "NJIT 802.1X Client for LuCI",
    "desc_en": "NJIT 802.1X Client for LuCI",
    "cat": "网络",
    "kind": "app",
@@ -736,7 +736,7 @@
   {
    "id": "luci-app-olsr",
    "name": "OLSR IPv4",
-   "desc": "OLSR IPv4 网状路由配置与状态。",
+   "desc": "OLSR configuration and status module",
    "desc_en": "OLSR configuration and status module",
    "cat": "网络",
    "kind": "app",
@@ -756,7 +756,7 @@
   {
    "id": "luci-app-olsr-services",
    "name": "olsr-services",
-   "desc": "显示 OLSR 名称服务插件公告的服务。",
+   "desc": "Show services announced with the nameservice plugin",
    "desc_en": "Show services announced with the nameservice plugin",
    "cat": "网络",
    "kind": "app",
@@ -778,7 +778,7 @@
   {
    "id": "luci-app-olsr-viz",
    "name": "olsr-viz",
-   "desc": "OLSR 网络拓扑可视化。",
+   "desc": "OLSR Visualisation",
    "desc_en": "OLSR Visualisation",
    "cat": "网络",
    "kind": "app",
@@ -800,7 +800,7 @@
   {
    "id": "luci-app-pppoe-relay",
    "name": "pppoe-relay",
-   "desc": "PPPoE 中继，把拨号请求转发给上游。",
+   "desc": "LuCI support for PPPoE Relay",
    "desc_en": "LuCI support for PPPoE Relay",
    "cat": "网络",
    "kind": "app",
@@ -821,7 +821,7 @@
   {
    "id": "luci-app-pppoe-server",
    "name": "pppoe-server",
-   "desc": "PPPoE 服务器，供下游客户端拨号。",
+   "desc": "LuCI support for PPPoE Server",
    "desc_en": "LuCI support for PPPoE Server",
    "cat": "网络",
    "kind": "app",
@@ -842,7 +842,7 @@
   {
    "id": "luci-app-qos",
    "name": "QoS",
-   "desc": "传统 QoS 服务质量配置。",
+   "desc": "Quality of Service configuration module",
    "desc_en": "Quality of Service configuration module",
    "cat": "网络",
    "kind": "app",
@@ -862,7 +862,7 @@
   {
    "id": "luci-app-rp-pppoe-server",
    "name": "RP PPPoE 服务器",
-   "desc": "Roaring Penguin PPPoE 服务器。",
+   "desc": "Roaring Penguin PPPoE Server",
    "desc_en": "Roaring Penguin PPPoE Server",
    "cat": "网络",
    "kind": "app",
@@ -882,7 +882,7 @@
   {
    "id": "luci-app-scutclient",
    "name": "scutclient",
-   "desc": "华南理工 802.1X 校园网客户端。",
+   "desc": "LuCI Support for scutclient",
    "desc_en": "LuCI Support for scutclient",
    "cat": "网络",
    "kind": "app",
@@ -902,7 +902,7 @@
   {
    "id": "luci-app-siitwizard",
    "name": "SIIT 4over6 assistant",
-   "desc": "SIIT IPv4 over IPv6 配置向导。",
+   "desc": "SIIT IPv4-over-IPv6 configuration wizard",
    "desc_en": "SIIT IPv4-over-IPv6 configuration wizard",
    "cat": "网络",
    "kind": "app",
@@ -922,7 +922,7 @@
   {
    "id": "luci-app-sms-tool-js",
    "name": "sms-tool-js",
-   "desc": "短信收发工具的图形界面。",
+   "desc": "LuCI JS Support for sms-tool",
    "desc_en": "LuCI JS Support for sms-tool",
    "cat": "网络",
    "kind": "app",
@@ -970,7 +970,7 @@
   {
    "id": "luci-app-sqm",
    "name": "SQM 队列管理",
-   "desc": "智能队列管理（SQM），改善缓冲膨胀。",
+   "desc": "LuCI Support for SQM Scripts",
    "desc_en": "LuCI Support for SQM Scripts",
    "cat": "网络",
    "kind": "app",
@@ -990,7 +990,7 @@
   {
    "id": "luci-app-syncdial",
    "name": "syncdial",
-   "desc": "虚拟 WAN 配置生成器，用于多拨。",
+   "desc": "Virtual WAN config generator",
    "desc_en": "Virtual WAN config generator",
    "cat": "网络",
    "kind": "app",
@@ -1011,7 +1011,7 @@
   {
    "id": "luci-app-timewol",
    "name": "timewol",
-   "desc": "定时网络唤醒（Wake-on-LAN）。",
+   "desc": "LuCI support for Timewol",
    "desc_en": "LuCI support for Timewol",
    "cat": "网络",
    "kind": "app",
@@ -1029,7 +1029,7 @@
   {
    "id": "luci-app-ua2f",
    "name": "UA2F",
-   "desc": "修改 User-Agent 绕过部分检测。",
+   "desc": "LuCI support for ua2f",
    "desc_en": "LuCI support for ua2f",
    "cat": "网络",
    "kind": "app",
@@ -1049,7 +1049,7 @@
   {
    "id": "luci-app-usteer",
    "name": "Usteer",
-   "desc": "OpenWrt 客户端漫游与负载均衡。",
+   "desc": "LuCI usteer app for js based luci",
    "desc_en": "LuCI usteer app for js based luci",
    "cat": "网络",
    "kind": "app",
@@ -1069,7 +1069,7 @@
   {
    "id": "luci-app-vlmcsd",
    "name": "Vlmcsd KMS 服务器",
-   "desc": "KMS 激活服务器，用于 Windows/Office 激活。",
+   "desc": "LuCI support for Vlmcsd KMS Server",
    "desc_en": "LuCI support for Vlmcsd KMS Server",
    "cat": "网络",
    "kind": "app",
@@ -1089,7 +1089,7 @@
   {
    "id": "luci-app-wifischedule",
    "name": "wifi定时",
-   "desc": "按计划开关 Wi-Fi。",
+   "desc": "Turns WiFi on and off according to a schedule",
    "desc_en": "Turns WiFi on and off according to a schedule",
    "cat": "网络",
    "kind": "app",
@@ -1109,7 +1109,7 @@
   {
    "id": "luci-app-wol",
    "name": "网络唤醒",
-   "desc": "网络唤醒（Wake-on-LAN）工具。",
+   "desc": "LuCI Support for Wake-on-LAN",
    "desc_en": "LuCI Support for Wake-on-LAN",
    "cat": "网络",
    "kind": "app",
@@ -1129,7 +1129,7 @@
   {
    "id": "luci-app-xlnetacc",
    "name": "xlnetacc",
-   "desc": "迅雷快鸟加速客户端。",
+   "desc": "LuCI Support for XLNetAcc",
    "desc_en": "LuCI Support for XLNetAcc",
    "cat": "网络",
    "kind": "app",
@@ -1151,7 +1151,7 @@
   {
    "id": "luci-app-cloudflared",
    "name": "Cloudflare 零信任隧道",
-   "desc": "Cloudflare Tunnel 客户端，内网穿透。",
+   "desc": "LuCI for Cloudflared",
    "desc_en": "LuCI for Cloudflared",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1171,7 +1171,7 @@
   {
    "id": "luci-app-frpc",
    "name": "frp 客户端",
-   "desc": "frp 客户端，内网穿透到公网服务器。",
+   "desc": "LuCI Support for frp client",
    "desc_en": "LuCI Support for frp client",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1191,7 +1191,7 @@
   {
    "id": "luci-app-frps",
    "name": "frp 服务器",
-   "desc": "frp 服务端，接受客户端穿透请求。",
+   "desc": "LuCI Support for frp server",
    "desc_en": "LuCI Support for frp server",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1211,7 +1211,7 @@
   {
    "id": "luci-app-ipsec-vpnd",
    "name": "IPSec VPN 服务器",
-   "desc": "strongSwan IPsec VPN 服务端。",
+   "desc": "LuCI support for IPSec VPN Server (IKEv1 with PSK and Xauth)",
    "desc_en": "LuCI support for IPSec VPN Server (IKEv1 with PSK and Xauth)",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1235,7 +1235,7 @@
   {
    "id": "luci-app-libreswan",
    "name": "Libreswan IPSec",
-   "desc": "Libreswan IPsec VPN 管理。",
+   "desc": "Luci Application for IPSec VPN (Libreswan)",
    "desc_en": "Luci Application for IPSec VPN (Libreswan)",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1255,7 +1255,7 @@
   {
    "id": "luci-app-n2n",
    "name": "n2n",
-   "desc": "n2n 虚拟局域网，异地组网。",
+   "desc": "n2n VPN Configuration module",
    "desc_en": "n2n VPN Configuration module",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1275,7 +1275,7 @@
   {
    "id": "luci-app-ngrokc",
    "name": "Content-Type: text/plain; charset=UTF-8\\n",
-   "desc": "ngrok 客户端，内网穿透。",
+   "desc": "LuCI support for ngrokc.",
    "desc_en": "LuCI support for ngrokc.",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1295,7 +1295,7 @@
   {
    "id": "luci-app-nps",
    "name": "nps",
-   "desc": "nps 内网穿透服务端/客户端。",
+   "desc": "LuCI for Nps",
    "desc_en": "LuCI for Nps",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1316,7 +1316,7 @@
   {
    "id": "luci-app-ocserv",
    "name": "ocserv",
-   "desc": "OpenConnect VPN 服务端（Cisco AnyConnect 兼容）。",
+   "desc": "LuCI Support for OpenConnect VPN",
    "desc_en": "LuCI Support for OpenConnect VPN",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1337,7 +1337,7 @@
   {
    "id": "luci-app-openvpn",
    "name": "openvpn",
-   "desc": "OpenVPN 客户端与服务端管理。",
+   "desc": "LuCI Support for OpenVPN",
    "desc_en": "LuCI Support for OpenVPN",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1355,7 +1355,7 @@
   {
    "id": "luci-app-openvpn-server",
    "name": "openvpn-server",
-   "desc": "OpenVPN 服务端专用配置。",
+   "desc": "LuCI support for OpenVPN Server",
    "desc_en": "LuCI support for OpenVPN Server",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1377,7 +1377,7 @@
   {
    "id": "luci-app-softethervpn",
    "name": "softethervpn",
-   "desc": "SoftEther VPN 多协议 VPN 服务器。",
+   "desc": "LuCI support for SoftEtherVPN",
    "desc_en": "LuCI support for SoftEtherVPN",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1407,7 +1407,7 @@
   {
    "id": "luci-app-strongswan-swanctl",
    "name": "strongSwan IPsec",
-   "desc": "strongSwan 现代配置接口（swanctl）。",
+   "desc": "LuCI support for strongSwan via swanctl",
    "desc_en": "LuCI support for strongSwan via swanctl",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1428,7 +1428,7 @@
   {
    "id": "luci-app-xfrpc",
    "name": "反向代理",
-   "desc": "xfrpc 内网穿透客户端。",
+   "desc": "LuCI Support for xfrpc",
    "desc_en": "LuCI Support for xfrpc",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1448,7 +1448,7 @@
   {
    "id": "luci-app-zerotier",
    "name": "ZeroTier",
-   "desc": "ZeroTier 虚拟局域网，一键异地组网。",
+   "desc": "LuCI for Zerotier",
    "desc_en": "LuCI for Zerotier",
    "cat": "VPN 与穿透",
    "kind": "app",
@@ -1468,7 +1468,7 @@
   {
    "id": "luci-app-3cat",
    "name": "3cat",
-   "desc": "三态分类器相关工具。",
+   "desc": "LuCI support for simple port forwarding via 3proxy",
    "desc_en": "LuCI support for simple port forwarding via 3proxy",
    "cat": "服务",
    "kind": "app",
@@ -1489,7 +1489,7 @@
   {
    "id": "luci-app-acme",
    "name": "ACME 证书",
-   "desc": "自动申请与续期 Let's Encrypt 等证书。",
+   "desc": "ACME package - LuCI interface",
    "desc_en": "ACME package - LuCI interface",
    "cat": "服务",
    "kind": "app",
@@ -1509,7 +1509,7 @@
   {
    "id": "luci-app-antiblock",
    "name": "AntiBlock",
-   "desc": "反封锁/反检测相关工具。",
+   "desc": "AntiBlock Web UI",
    "desc_en": "AntiBlock Web UI",
    "cat": "服务",
    "kind": "app",
@@ -1529,7 +1529,7 @@
   {
    "id": "luci-app-apinger",
    "name": "Apinger",
-   "desc": "多目标网络连通性监控与告警。",
+   "desc": "LuCI support for the Apinger",
    "desc_en": "LuCI support for the Apinger",
    "cat": "服务",
    "kind": "app",
@@ -1550,7 +1550,7 @@
   {
    "id": "luci-app-bitsrunlogin-go",
    "name": "深澜登录器",
-   "desc": "比特跑校园网认证客户端。",
+   "desc": "LuCI app for BitSrunLoginGo (Bit Srun auto login tool)",
    "desc_en": "LuCI app for BitSrunLoginGo (Bit Srun auto login tool)",
    "cat": "服务",
    "kind": "app",
@@ -1570,7 +1570,7 @@
   {
    "id": "luci-app-chrony",
    "name": "Chrony",
-   "desc": "高精度 NTP 时间同步服务。",
+   "desc": "LuCI support for chrony",
    "desc_en": "LuCI support for chrony",
    "cat": "服务",
    "kind": "app",
@@ -1590,7 +1590,7 @@
   {
    "id": "luci-app-clamav",
    "name": "ClamAV",
-   "desc": "ClamAV 杀毒引擎管理界面。",
+   "desc": "ClamAV LuCI interface",
    "desc_en": "ClamAV LuCI interface",
    "cat": "服务",
    "kind": "app",
@@ -1610,7 +1610,7 @@
   {
    "id": "luci-app-coovachilli",
    "name": "CoovaChilli 网页认证",
-   "desc": "Captive Portal 热点认证（CoovaChilli）。",
+   "desc": "LuCI Support for Coova Chilli",
    "desc_en": "LuCI Support for Coova Chilli",
    "cat": "服务",
    "kind": "app",
@@ -1630,7 +1630,7 @@
   {
    "id": "luci-app-dae",
    "name": "dae",
-   "desc": "基于 eBPF 的透明代理框架。",
+   "desc": "LuCI app for dae",
    "desc_en": "LuCI app for dae",
    "cat": "服务",
    "kind": "app",
@@ -1652,7 +1652,7 @@
   {
    "id": "luci-app-daed",
    "name": "daed",
-   "desc": "dae 的图形管理面板。",
+   "desc": "LuCI app for dae dashboard",
    "desc_en": "LuCI app for dae dashboard",
    "cat": "服务",
    "kind": "app",
@@ -1674,7 +1674,7 @@
   {
    "id": "luci-app-dufs",
    "name": "Dufs",
-   "desc": "简单的静态文件服务器。",
+   "desc": "LuCI support for dufs",
    "desc_en": "LuCI support for dufs",
    "cat": "服务",
    "kind": "app",
@@ -1694,7 +1694,7 @@
   {
    "id": "luci-app-dump1090",
    "name": "dump1090",
-   "desc": "ADS-B 飞机位置接收与解码。",
+   "desc": "LuCI Support for dump1090",
    "desc_en": "LuCI Support for dump1090",
    "cat": "服务",
    "kind": "app",
@@ -1714,7 +1714,7 @@
   {
    "id": "luci-app-dynapoint",
    "name": "动态点",
-   "desc": "动态无线中继/回程点管理。",
+   "desc": "LuCI Support for DynaPoint",
    "desc_en": "LuCI Support for DynaPoint",
    "cat": "服务",
    "kind": "app",
@@ -1735,7 +1735,7 @@
   {
    "id": "luci-app-email",
    "name": "电子邮件服务器",
-   "desc": "邮件发送/通知相关配置。",
+   "desc": "LuCI app for email server configuration (EmailRelay)",
    "desc_en": "LuCI app for email server configuration (EmailRelay)",
    "cat": "服务",
    "kind": "app",
@@ -1755,7 +1755,7 @@
   {
    "id": "luci-app-filebrowser-go",
    "name": "FileBrowser",
-   "desc": "网页版文件浏览器。",
+   "desc": "LuCI app for FileBrowser",
    "desc_en": "LuCI app for FileBrowser",
    "cat": "服务",
    "kind": "app",
@@ -1775,7 +1775,7 @@
   {
    "id": "luci-app-fwknopd",
    "name": "Firewall Knock 守护进程",
-   "desc": "单包授权（SPA）防火墙敲门服务。",
+   "desc": "Fwknopd config - web config for the firewall knock daemon",
    "desc_en": "Fwknopd config - web config for the firewall knock daemon",
    "cat": "服务",
    "kind": "app",
@@ -1796,7 +1796,7 @@
   {
    "id": "luci-app-gost",
    "name": "GOST",
-   "desc": "GO Simple Tunnel，多协议代理/转发。",
+   "desc": "LuCI support for GOST",
    "desc_en": "LuCI support for GOST",
    "cat": "服务",
    "kind": "app",
@@ -1816,7 +1816,7 @@
   {
    "id": "luci-app-irqbalance",
    "name": "irqbalance",
-   "desc": "中断负载均衡，优化多核性能。",
+   "desc": "LuCI support for irqbalance",
    "desc_en": "LuCI support for irqbalance",
    "cat": "服务",
    "kind": "app",
@@ -1836,7 +1836,7 @@
   {
    "id": "luci-app-keepalived",
    "name": "VRRP",
-   "desc": "VRRP 高可用与故障转移。",
+   "desc": "LuCI support for the Keepalived",
    "desc_en": "LuCI support for the Keepalived",
    "cat": "服务",
    "kind": "app",
@@ -1857,7 +1857,7 @@
   {
    "id": "luci-app-lldpd",
    "name": "LLDP",
-   "desc": "LLDP 邻居发现协议守护进程。",
+   "desc": "LuCI support for LLDP daemon",
    "desc_en": "LuCI support for LLDP daemon",
    "cat": "服务",
    "kind": "app",
@@ -1878,7 +1878,7 @@
   {
    "id": "luci-app-microsocks",
    "name": "MicroSocks",
-   "desc": "轻量 SOCKS5 代理服务器。",
+   "desc": "LuCI support for MicroSocks",
    "desc_en": "LuCI support for MicroSocks",
    "cat": "服务",
    "kind": "app",
@@ -1898,7 +1898,7 @@
   {
    "id": "luci-app-mosquitto",
    "name": "Mosquitto",
-   "desc": "MQTT 消息代理服务。",
+   "desc": "Mosquitto LuCI interface",
    "desc_en": "Mosquitto LuCI interface",
    "cat": "服务",
    "kind": "app",
@@ -1918,7 +1918,7 @@
   {
    "id": "luci-app-msd_lite",
    "name": "组播转换",
-   "desc": "轻量多播流分发。",
+   "desc": "LuCI support for Multi stream daemon lite",
    "desc_en": "LuCI support for Multi stream daemon lite",
    "cat": "服务",
    "kind": "app",
@@ -1938,7 +1938,7 @@
   {
    "id": "luci-app-natmap",
    "name": "NATMap",
-   "desc": "NAT 类型检测与端口映射辅助。",
+   "desc": "LuCI Support for natmap",
    "desc_en": "LuCI Support for natmap",
    "cat": "服务",
    "kind": "app",
@@ -1958,7 +1958,7 @@
   {
    "id": "luci-app-nextdns",
    "name": "NextDNS",
-   "desc": "NextDNS 客户端，可定制 DNS 过滤。",
+   "desc": "LuCI support for NextDNS",
    "desc_en": "LuCI support for NextDNS",
    "cat": "服务",
    "kind": "app",
@@ -1978,7 +1978,7 @@
   {
    "id": "luci-app-nut",
    "name": "网络 UPS 工具",
-   "desc": "UPS 电源监控（Network UPS Tools）。",
+   "desc": "Network UPS Tools Configuration",
    "desc_en": "Network UPS Tools Configuration",
    "cat": "服务",
    "kind": "app",
@@ -2003,7 +2003,7 @@
   {
    "id": "luci-app-omcproxy",
    "name": "组播代理",
-   "desc": "IGMP/MLD 多播代理。",
+   "desc": "LuCI support for omcproxy",
    "desc_en": "LuCI support for omcproxy",
    "cat": "服务",
    "kind": "app",
@@ -2023,7 +2023,7 @@
   {
    "id": "luci-app-openwisp",
    "name": "OpenWISP",
-   "desc": "OpenWISP 集中管理客户端。",
+   "desc": "LuCI support for OpenWISP",
    "desc_en": "LuCI support for OpenWISP",
    "cat": "服务",
    "kind": "app",
@@ -2043,7 +2043,7 @@
   {
    "id": "luci-app-pagekitec",
    "name": "PageKite出版商",
-   "desc": "PageKite 内网穿透客户端。",
+   "desc": "LuCI Support for PageKite",
    "desc_en": "LuCI Support for PageKite",
    "cat": "服务",
    "kind": "app",
@@ -2063,7 +2063,7 @@
   {
    "id": "luci-app-pbr",
    "name": "策略路由",
-   "desc": "基于策略的路由（Policy Based Routing）。",
+   "desc": "Policy Based Routing Service Web UI",
    "desc_en": "Policy Based Routing Service Web UI",
    "cat": "服务",
    "kind": "app",
@@ -2084,7 +2084,7 @@
   {
    "id": "luci-app-radicale3",
    "name": "Radicale3",
-   "desc": "CalDAV/CardDAV 日历与联系人服务器。",
+   "desc": "Radicale v3 CalDAV/CardDAV Server",
    "desc_en": "Radicale v3 CalDAV/CardDAV Server",
    "cat": "服务",
    "kind": "app",
@@ -2105,7 +2105,7 @@
   {
    "id": "luci-app-rtp2httpd",
    "name": "rtp2httpd",
-   "desc": "RTP 流转 HTTP 服务。",
+   "desc": "LuCI support for rtp2httpd",
    "desc_en": "LuCI support for rtp2httpd",
    "cat": "服务",
    "kind": "app",
@@ -2125,7 +2125,7 @@
   {
    "id": "luci-app-rustdesk-server",
    "name": "RustDesk 服务器",
-   "desc": "RustDesk 远程桌面服务器。",
+   "desc": "LuCI support for RustDesk Server",
    "desc_en": "LuCI support for RustDesk Server",
    "cat": "服务",
    "kind": "app",
@@ -2145,7 +2145,7 @@
   {
    "id": "luci-app-ser2net",
    "name": "串口命令转发(ser2net)",
-   "desc": "串口转网络服务。",
+   "desc": "LuCI Support for ser2net",
    "desc_en": "LuCI Support for ser2net",
    "cat": "服务",
    "kind": "app",
@@ -2165,7 +2165,7 @@
   {
    "id": "luci-app-snmpd",
    "name": "SNMPD",
-   "desc": "SNMP 网络管理代理。",
+   "desc": "Net-SNMP LuCI interface",
    "desc_en": "Net-SNMP LuCI interface",
    "cat": "服务",
    "kind": "app",
@@ -2185,7 +2185,7 @@
   {
    "id": "luci-app-spotifyd",
    "name": "Spotifyd",
-   "desc": "Spotify 音乐播放守护进程。",
+   "desc": "LuCI support for spotifyd",
    "desc_en": "LuCI support for spotifyd",
    "cat": "服务",
    "kind": "app",
@@ -2205,7 +2205,7 @@
   {
    "id": "luci-app-squid",
    "name": "Squid",
-   "desc": "Squid 代理缓存服务器。",
+   "desc": "Squid LuCI Interface",
    "desc_en": "Squid LuCI Interface",
    "cat": "服务",
    "kind": "app",
@@ -2225,7 +2225,7 @@
   {
    "id": "luci-app-sshtunnel",
    "name": "SSH 隧道",
-   "desc": "SSH 隧道管理。",
+   "desc": "LuCI support for SSH Tunnels (sshtunnel package)",
    "desc_en": "LuCI support for SSH Tunnels (sshtunnel package)",
    "cat": "服务",
    "kind": "app",
@@ -2245,7 +2245,7 @@
   {
    "id": "luci-app-sysuh3c",
    "name": "SYSU H3C 客户端",
-   "desc": "中山大学 H3C 802.1X 校园网客户端。",
+   "desc": "LuCI support for SYSU H3C 802.1X Client",
    "desc_en": "LuCI support for SYSU H3C 802.1X Client",
    "cat": "服务",
    "kind": "app",
@@ -2265,7 +2265,7 @@
   {
    "id": "luci-app-tinyproxy",
    "name": "Tinyproxy 服务器",
-   "desc": "轻量 HTTP/HTTPS 代理。",
+   "desc": "Tinyproxy - HTTP(S)-Proxy configuration",
    "desc_en": "Tinyproxy - HTTP(S)-Proxy configuration",
    "cat": "服务",
    "kind": "app",
@@ -2285,7 +2285,7 @@
   {
    "id": "luci-app-tor",
    "name": "Tor onion 路由",
-   "desc": "Tor 匿名网络洋葱路由配置。",
+   "desc": "LuCI app to configure Tor",
    "desc_en": "LuCI app to configure Tor",
    "cat": "服务",
    "kind": "app",
@@ -2306,7 +2306,7 @@
   {
    "id": "luci-app-travelmate",
    "name": "Travelmate",
-   "desc": "旅行路由器自动连公共 Wi-Fi。",
+   "desc": "LuCI support for Travelmate",
    "desc_en": "LuCI support for Travelmate",
    "cat": "服务",
    "kind": "app",
@@ -2327,7 +2327,7 @@
   {
    "id": "luci-app-udpxy",
    "name": "udpxy",
-   "desc": "UDP 多播转 HTTP 代理。",
+   "desc": "LuCI Support for udpxy",
    "desc_en": "LuCI Support for udpxy",
    "cat": "服务",
    "kind": "app",
@@ -2347,7 +2347,7 @@
   {
    "id": "luci-app-wechatpush",
    "name": "微信推送",
-   "desc": "通过微信推送路由器状态与通知。",
+   "desc": "LuCI support for wechatpush",
    "desc_en": "LuCI support for wechatpush",
    "cat": "服务",
    "kind": "app",
@@ -2375,7 +2375,7 @@
   {
    "id": "luci-app-xinetd",
    "name": "Xinetd",
-   "desc": "超级服务器，管理多种网络服务。",
+   "desc": "LuCI Support for xinetd",
    "desc_en": "LuCI Support for xinetd",
    "cat": "服务",
    "kind": "app",
@@ -2395,7 +2395,7 @@
   {
    "id": "luci-app-cifs-mount",
    "name": "挂载 SMB 网络共享",
-   "desc": "挂载 SMB/CIFS 网络共享文件夹。",
+   "desc": "LuCI for SMB/CIFS Mount",
    "desc_en": "LuCI for SMB/CIFS Mount",
    "cat": "存储",
    "kind": "app",
@@ -2415,7 +2415,7 @@
   {
    "id": "luci-app-diskman",
    "name": "diskman",
-   "desc": "磁盘分区与挂载管理。",
+   "desc": "Disk Manager interface for LuCI",
    "desc_en": "Disk Manager interface for LuCI",
    "cat": "存储",
    "kind": "app",
@@ -2454,7 +2454,7 @@
   {
    "id": "luci-app-hd-idle",
    "name": "硬盘休眠",
-   "desc": "硬盘空闲自动休眠，延长寿命。",
+   "desc": "Hard Disk Idle Spin-Down module",
    "desc_en": "Hard Disk Idle Spin-Down module",
    "cat": "存储",
    "kind": "app",
@@ -2475,7 +2475,7 @@
   {
    "id": "luci-app-ksmbd",
    "name": "网络共享",
-   "desc": "内核态 SMB 文件共享服务。",
+   "desc": "Network Shares - Ksmbd the SMB kernel fileserver",
    "desc_en": "Network Shares - Ksmbd the SMB kernel fileserver",
    "cat": "存储",
    "kind": "app",
@@ -2495,7 +2495,7 @@
   {
    "id": "luci-app-minidlna",
    "name": "miniDLNA",
-   "desc": "迷你 DLNA 媒体服务器。",
+   "desc": "LuCI Support for miniDLNA",
    "desc_en": "LuCI Support for miniDLNA",
    "cat": "存储",
    "kind": "app",
@@ -2515,7 +2515,7 @@
   {
    "id": "luci-app-mjpg-streamer",
    "name": "MJPG-streamer(网络摄像机串流)",
-   "desc": "USB 摄像头 MJPEG 推流。",
+   "desc": "MJPG-Streamer service configuration module",
    "desc_en": "MJPG-Streamer service configuration module",
    "cat": "存储",
    "kind": "app",
@@ -2535,7 +2535,7 @@
   {
    "id": "luci-app-nfs",
    "name": "nfs",
-   "desc": "NFS 网络文件系统共享。",
+   "desc": "LuCI support for nfs",
    "desc_en": "LuCI support for nfs",
    "cat": "存储",
    "kind": "app",
@@ -2578,7 +2578,7 @@
   {
    "id": "luci-app-p910nd",
    "name": "p910nd - 打印服务器",
-   "desc": "轻量 USB 打印机共享（p910nd）。",
+   "desc": "p910nd - Printer server module",
    "desc_en": "p910nd - Printer server module",
    "cat": "存储",
    "kind": "app",
@@ -2598,7 +2598,7 @@
   {
    "id": "luci-app-ps3netsrv",
    "name": "ps3netsrv",
-   "desc": "PS3 网络服务器，用于游戏备份。",
+   "desc": "Luci for PS3NETSRV",
    "desc_en": "Luci for PS3NETSRV",
    "cat": "存储",
    "kind": "app",
@@ -2618,7 +2618,7 @@
   {
    "id": "luci-app-rclone",
    "name": "rclone",
-   "desc": "多云盘同步与挂载工具。",
+   "desc": "LuCI support for Rclone",
    "desc_en": "LuCI support for Rclone",
    "cat": "存储",
    "kind": "app",
@@ -2660,7 +2660,7 @@
   {
    "id": "luci-app-syncthing",
    "name": "syncthing",
-   "desc": "去中心化文件同步工具。",
+   "desc": "LuCI support for syncthing",
    "desc_en": "LuCI support for syncthing",
    "cat": "存储",
    "kind": "app",
@@ -2680,7 +2680,7 @@
   {
    "id": "luci-app-usb-printer",
    "name": "usb-printer",
-   "desc": "USB 打印机共享。",
+   "desc": "USB Printer Share via TCP/IP",
    "desc_en": "USB Printer Share via TCP/IP",
    "cat": "存储",
    "kind": "app",
@@ -2701,7 +2701,7 @@
   {
    "id": "luci-app-vsftpd",
    "name": "vsftpd",
-   "desc": "高性能 FTP 服务器。",
+   "desc": "LuCI support for VSFTPD",
    "desc_en": "LuCI support for VSFTPD",
    "cat": "存储",
    "kind": "app",
@@ -2721,7 +2721,7 @@
   {
    "id": "luci-app-amule",
    "name": "amule",
-   "desc": "eMule/aMule P2P 下载客户端。",
+   "desc": "LuCI support for Amule",
    "desc_en": "LuCI support for Amule",
    "cat": "下载",
    "kind": "app",
@@ -2782,7 +2782,7 @@
   {
    "id": "luci-app-transmission",
    "name": "Transmission",
-   "desc": "Transmission BT 下载客户端。",
+   "desc": "LuCI Support for Transmission",
    "desc_en": "LuCI Support for Transmission",
    "cat": "下载",
    "kind": "app",
@@ -2805,7 +2805,7 @@
   {
    "id": "luci-app-docker",
    "name": "docker",
-   "desc": "Docker 容器引擎管理（旧版）。",
+   "desc": "Luci for Docker-CE",
    "desc_en": "Luci for Docker-CE",
    "cat": "容器",
    "kind": "app",
@@ -2853,7 +2853,7 @@
   {
    "id": "luci-app-lxc",
    "name": "lxc",
-   "desc": "LXC 轻量级容器管理。",
+   "desc": "LXC management Web UI",
    "desc_en": "LXC management Web UI",
    "cat": "容器",
    "kind": "app",
@@ -2880,7 +2880,7 @@
   {
    "id": "luci-app-babeld",
    "name": "Babeld",
-   "desc": "Babel 路由协议守护进程。",
+   "desc": "LuCI support for babeld",
    "desc_en": "LuCI support for babeld",
    "cat": "监控",
    "kind": "app",
@@ -2900,7 +2900,7 @@
   {
    "id": "luci-app-cpulimit",
    "name": "cpulimit",
-   "desc": "限制指定进程的 CPU 占用。",
+   "desc": "cpulimit configuration module",
    "desc_en": "cpulimit configuration module",
    "cat": "监控",
    "kind": "app",
@@ -2920,7 +2920,7 @@
   {
    "id": "luci-app-cshark",
    "name": "cshark",
-   "desc": "CloudShark 抓包上传工具。",
+   "desc": "Cloudshark capture tool Web UI",
    "desc_en": "Cloudshark capture tool Web UI",
    "cat": "监控",
    "kind": "app",
@@ -2960,7 +2960,7 @@
   {
    "id": "luci-app-nlbwmon",
    "name": "带宽监控",
-   "desc": "基于 Netlink 的带宽流量统计。",
+   "desc": "Netlink based bandwidth accounting",
    "desc_en": "Netlink based bandwidth accounting",
    "cat": "监控",
    "kind": "app",
@@ -2981,7 +2981,7 @@
   {
    "id": "luci-app-softether",
    "name": "SoftEther Status",
-   "desc": "SoftEther VPN 状态查看。",
+   "desc": "Softether management application",
    "desc_en": "Softether management application",
    "cat": "监控",
    "kind": "app",
@@ -3001,7 +3001,7 @@
   {
    "id": "luci-app-statistics",
    "name": "statistics",
-   "desc": "系统与网络统计图表。",
+   "desc": "LuCI Statistics Application",
    "desc_en": "LuCI Statistics Application",
    "cat": "监控",
    "kind": "app",
@@ -3029,7 +3029,7 @@
   {
    "id": "luci-app-vnstat2",
    "name": "流量监控器",
-   "desc": "流量历史统计（vnStat）。",
+   "desc": "LuCI Support for vnStat 2",
    "desc_en": "LuCI Support for vnStat 2",
    "cat": "监控",
    "kind": "app",
@@ -3051,7 +3051,7 @@
   {
    "id": "luci-app-airplay2",
    "name": "airplay2",
-   "desc": "AirPlay 接收端。",
+   "desc": "Luci for Apple Airplay2 Receiver",
    "desc_en": "Luci for Apple Airplay2 Receiver",
    "cat": "多媒体",
    "kind": "app",
@@ -3072,7 +3072,7 @@
   {
    "id": "luci-app-music-remote-center",
    "name": "music-remote-center",
-   "desc": "音乐远程控制中心。",
+   "desc": "Luci for Music Remote Center",
    "desc_en": "Luci for Music Remote Center",
    "cat": "多媒体",
    "kind": "app",
@@ -3092,8 +3092,8 @@
   },
   {
    "id": "luci-app-oscam",
-   "name": "OSCam",
-   "desc": "OSCam 条件接收模块（智能卡）。",
+   "name": "Content-Type: text/plain; charset=UTF-8\\n",
+   "desc": "LuCI Support for oscam",
    "desc_en": "LuCI Support for oscam",
    "cat": "多媒体",
    "kind": "app",
@@ -3156,7 +3156,7 @@
   {
    "id": "luci-app-acl",
    "name": "ACL 设置",
-   "desc": "账户与权限管理。",
+   "desc": "LuCI account management module",
    "desc_en": "LuCI account management module",
    "cat": "系统",
    "kind": "app",
@@ -3174,7 +3174,7 @@
   {
    "id": "luci-app-advanced-reboot",
    "name": "高级重启",
-   "desc": "高级重启与分区切换。",
+   "desc": "Advanced Linksys Reboot Web UI",
    "desc_en": "Advanced Linksys Reboot Web UI",
    "cat": "系统",
    "kind": "app",
@@ -3194,7 +3194,7 @@
   {
    "id": "luci-app-argon-config",
    "name": "Argon 主题设置",
-   "desc": "Argon 主题个性化设置。",
+   "desc": "LuCI for Argon theme configuration",
    "desc_en": "LuCI for Argon theme configuration",
    "cat": "系统",
    "kind": "app",
@@ -3214,7 +3214,7 @@
   {
    "id": "luci-app-attendedsysupgrade",
    "name": "值守式系统升级",
-   "desc": "值守式在线系统升级。",
+   "desc": "LuCI support for attended sysupgrades",
    "desc_en": "LuCI support for attended sysupgrades",
    "cat": "系统",
    "kind": "app",
@@ -3253,7 +3253,7 @@
   {
    "id": "luci-app-commands",
    "name": "自定义命令",
-   "desc": "自定义命令快捷入口。",
+   "desc": "LuCI Shell Command Module",
    "desc_en": "LuCI Shell Command Module",
    "cat": "系统",
    "kind": "app",
@@ -3271,7 +3271,7 @@
   {
    "id": "luci-app-cpufreq",
    "name": "CPU 性能优化调节",
-   "desc": "CPU 频率与性能调节。",
+   "desc": "LuCI for CPU Freq Setting",
    "desc_en": "LuCI for CPU Freq Setting",
    "cat": "系统",
    "kind": "app",
@@ -3291,7 +3291,7 @@
   {
    "id": "luci-app-crowdsec-firewall-bouncer",
    "name": "crowdsec-firewall-bouncer",
-   "desc": "CrowdSec 防火墙拦截器。",
+   "desc": "CrowdSec firewall bouncer LuCI interface",
    "desc_en": "CrowdSec firewall bouncer LuCI interface",
    "cat": "系统",
    "kind": "app",
@@ -3311,7 +3311,7 @@
   {
    "id": "luci-app-example",
    "name": "example",
-   "desc": "LuCI JS 示例应用。",
+   "desc": "LuCI example app for js based luci",
    "desc_en": "LuCI example app for js based luci",
    "cat": "系统",
    "kind": "app",
@@ -3329,7 +3329,7 @@
   {
    "id": "luci-app-filebrowser",
    "name": "文件浏览器",
-   "desc": "网页文件浏览器。",
+   "desc": "LuCI File Browser module",
    "desc_en": "LuCI File Browser module",
    "cat": "系统",
    "kind": "app",
@@ -3347,7 +3347,7 @@
   {
    "id": "luci-app-filemanager",
    "name": "文件管理器",
-   "desc": "网页文件管理器。",
+   "desc": "LuCI File Manager module",
    "desc_en": "LuCI File Manager module",
    "cat": "系统",
    "kind": "app",
@@ -3365,7 +3365,7 @@
   {
    "id": "luci-app-firewall",
    "name": "防火墙",
-   "desc": "防火墙与端口转发。",
+   "desc": "Firewall and port forwarding application",
    "desc_en": "Firewall and port forwarding application",
    "cat": "系统",
    "kind": "app",
@@ -3384,8 +3384,8 @@
   },
   {
    "id": "luci-app-k3screenctrl",
-   "name": "K3 屏幕控制",
-   "desc": "斐讯 K3 屏幕控制。",
+   "name": "Content-Type: text/plain; charset=UTF-8\\n",
+   "desc": "LuCI Support for k3screenctrl",
    "desc_en": "LuCI Support for k3screenctrl",
    "cat": "系统",
    "kind": "app",
@@ -3405,7 +3405,7 @@
   {
    "id": "luci-app-ledtrig-rssi",
    "name": "ledtrig-rssi",
-   "desc": "LED 按信号强度触发。",
+   "desc": "LuCI Support for ledtrigger rssi",
    "desc_en": "LuCI Support for ledtrigger rssi",
    "cat": "系统",
    "kind": "app",
@@ -3425,7 +3425,7 @@
   {
    "id": "luci-app-ledtrig-switch",
    "name": "ledtrig-switch",
-   "desc": "LED 按开关状态触发。",
+   "desc": "LuCI Support for ledtrigger switch",
    "desc_en": "LuCI Support for ledtrigger switch",
    "cat": "系统",
    "kind": "app",
@@ -3443,7 +3443,7 @@
   {
    "id": "luci-app-ledtrig-usbport",
    "name": "ledtrig-usbport",
-   "desc": "LED 按 USB 端口状态触发。",
+   "desc": "LuCI Support for ledtrigger usbport",
    "desc_en": "LuCI Support for ledtrigger usbport",
    "cat": "系统",
    "kind": "app",
@@ -3463,7 +3463,7 @@
   {
    "id": "luci-app-ltqtapi",
    "name": "ltqtapi",
-   "desc": "Lantiq 设备相关接口。",
+   "desc": "LuCI Support for Lantiq Devices",
    "desc_en": "LuCI Support for Lantiq Devices",
    "cat": "系统",
    "kind": "app",
@@ -3480,8 +3480,8 @@
   },
   {
    "id": "luci-app-oled",
-   "name": "OLED 显示",
-   "desc": "OLED 屏幕显示控制。",
+   "name": "Content-Type: text/plain; charset=UTF-8",
+   "desc": "",
    "desc_en": "",
    "cat": "系统",
    "kind": "app",
@@ -3502,7 +3502,7 @@
   {
    "id": "luci-app-package-manager",
    "name": "软件包",
-   "desc": "软件包管理界面。",
+   "desc": "Package management application",
    "desc_en": "Package management application",
    "cat": "系统",
    "kind": "app",
@@ -3520,7 +3520,7 @@
   {
    "id": "luci-app-ramfree",
    "name": "释放内存",
-   "desc": "一键释放内存。",
+   "desc": "LuCI support for RAM free",
    "desc_en": "LuCI support for RAM free",
    "cat": "系统",
    "kind": "app",
@@ -3538,7 +3538,7 @@
   {
    "id": "luci-app-splash",
    "name": "splash",
-   "desc": "Freifunk 强制门户认证。",
+   "desc": "Freifunk DHCP-Splash application",
    "desc_en": "Freifunk DHCP-Splash application",
    "cat": "系统",
    "kind": "app",
@@ -3606,7 +3606,7 @@
   {
    "id": "luci-app-uhttpd",
    "name": "uHTTPd",
-   "desc": "uHTTPd Web 服务器配置。",
+   "desc": "uHTTPd Webserver Configuration",
    "desc_en": "uHTTPd Webserver Configuration",
    "cat": "系统",
    "kind": "app",
@@ -3626,7 +3626,7 @@
   {
    "id": "luci-app-watchcat",
    "name": "Watchcat",
-   "desc": "网络监控看门狗。",
+   "desc": "LuCI Support for Watchcat",
    "desc_en": "LuCI Support for Watchcat",
    "cat": "系统",
    "kind": "app",
@@ -3646,7 +3646,7 @@
   {
    "id": "luci-proto-3g",
    "name": "3g",
-   "desc": "3G 蜂窝网络协议支持。",
+   "desc": "Support for 3G",
    "desc_en": "Support for 3G",
    "cat": "协议",
    "kind": "proto",
@@ -3666,7 +3666,7 @@
   {
    "id": "luci-proto-autoip",
    "name": "autoip",
-   "desc": "Avahi IPv4 链路本地地址配置。",
+   "desc": "Support for Avahi IPv4LL configuration",
    "desc_en": "Support for Avahi IPv4LL configuration",
    "cat": "协议",
    "kind": "proto",
@@ -3686,7 +3686,7 @@
   {
    "id": "luci-proto-batman-adv",
    "name": "batman-adv",
-   "desc": "batman-adv 网状路由协议。",
+   "desc": "Support for the batman-adv protocol",
    "desc_en": "Support for the batman-adv protocol",
    "cat": "协议",
    "kind": "proto",
@@ -3706,7 +3706,7 @@
   {
    "id": "luci-proto-external",
    "name": "external",
-   "desc": "外部管理协议支持。",
+   "desc": "Support for externally managed protocol",
    "desc_en": "Support for externally managed protocol",
    "cat": "协议",
    "kind": "proto",
@@ -3726,7 +3726,7 @@
   {
    "id": "luci-proto-gre",
    "name": "gre",
-   "desc": "GRE 隧道（RFC2784）支持。",
+   "desc": "Support for GRE tunnels (RFC2784)",
    "desc_en": "Support for GRE tunnels (RFC2784)",
    "cat": "协议",
    "kind": "proto",
@@ -3746,7 +3746,7 @@
   {
    "id": "luci-proto-hnet",
    "name": "hnet",
-   "desc": "hnet 家庭网络协议。",
+   "desc": "Support for hnet",
    "desc_en": "Support for hnet",
    "cat": "协议",
    "kind": "proto",
@@ -3764,7 +3764,7 @@
   {
    "id": "luci-proto-ipip",
    "name": "ipip",
-   "desc": "IPIP 隧道（IPv4-in-IPv4）支持。",
+   "desc": "Support for IPIP tunnels (IPv4-in-IPv4 RFC2003)",
    "desc_en": "Support for IPIP tunnels (IPv4-in-IPv4 RFC2003)",
    "cat": "协议",
    "kind": "proto",
@@ -3784,7 +3784,7 @@
   {
    "id": "luci-proto-ipv6",
    "name": "ipv6",
-   "desc": "DHCPv6/6in4/6to4/6rd/DS-Lite/IPIP6 等 IPv6 协议。",
+   "desc": "Support for DHCPv6/6in4/6to4/6rd/DS-Lite/IPIP6",
    "desc_en": "Support for DHCPv6/6in4/6to4/6rd/DS-Lite/IPIP6",
    "cat": "协议",
    "kind": "proto",
@@ -3802,7 +3802,7 @@
   {
    "id": "luci-proto-mbim",
    "name": "mbim",
-   "desc": "MBIM 蜂窝协议支持。",
+   "desc": "Support for MBIM",
    "desc_en": "Support for MBIM",
    "cat": "协议",
    "kind": "proto",
@@ -3821,8 +3821,8 @@
   },
   {
    "id": "luci-proto-minieap",
-   "name": "MiniEAP",
-   "desc": "MiniEAP 802.1X 客户端。",
+   "name": "Content-Type: text/plain; charset=UTF-8",
+   "desc": "LuCI support for MiniEAP",
    "desc_en": "LuCI support for MiniEAP",
    "cat": "协议",
    "kind": "proto",
@@ -3842,7 +3842,7 @@
   {
    "id": "luci-proto-modemmanager",
    "name": "Cellular Network",
-   "desc": "ModemManager 蜂窝网络管理。",
+   "desc": "Support for ModemManager",
    "desc_en": "Support for ModemManager",
    "cat": "协议",
    "kind": "proto",
@@ -3862,7 +3862,7 @@
   {
    "id": "luci-proto-ncm",
    "name": "ncm",
-   "desc": "NCM 蜂窝协议支持。",
+   "desc": "Support for NCM",
    "desc_en": "Support for NCM",
    "cat": "协议",
    "kind": "proto",
@@ -3882,7 +3882,7 @@
   {
    "id": "luci-proto-nebula",
    "name": "nebula",
-   "desc": "Nebula 虚拟网络协议。",
+   "desc": "Support for Nebula",
    "desc_en": "Support for Nebula",
    "cat": "协议",
    "kind": "proto",
@@ -3903,7 +3903,7 @@
   {
    "id": "luci-proto-openconnect",
    "name": "openconnect",
-   "desc": "OpenConnect VPN 协议。",
+   "desc": "Support for OpenConnect VPN",
    "desc_en": "Support for OpenConnect VPN",
    "cat": "协议",
    "kind": "proto",
@@ -3923,7 +3923,7 @@
   {
    "id": "luci-proto-openfortivpn",
    "name": "openfortivpn",
-   "desc": "Fortinet SSL VPN 客户端。",
+   "desc": "Support for OpenFortivpn",
    "desc_en": "Support for OpenFortivpn",
    "cat": "协议",
    "kind": "proto",
@@ -3943,7 +3943,7 @@
   {
    "id": "luci-proto-ppp",
    "name": "ppp",
-   "desc": "PPP/PPPoE/PPPoA/PPtP 协议支持。",
+   "desc": "Support for PPP/PPPoE/PPPoA/PPtP",
    "desc_en": "Support for PPP/PPPoE/PPPoA/PPtP",
    "cat": "协议",
    "kind": "proto",
@@ -3961,7 +3961,7 @@
   {
    "id": "luci-proto-pppossh",
    "name": "pppossh",
-   "desc": "通过 SSH 的 PPP 隧道。",
+   "desc": "Support for pppossh",
    "desc_en": "Support for pppossh",
    "cat": "协议",
    "kind": "proto",
@@ -3981,7 +3981,7 @@
   {
    "id": "luci-proto-qmi",
    "name": "qmi",
-   "desc": "QMI 蜂窝协议支持。",
+   "desc": "Support for QMI",
    "desc_en": "Support for QMI",
    "cat": "协议",
    "kind": "proto",
@@ -4001,7 +4001,7 @@
   {
    "id": "luci-proto-quectel",
    "name": "quectel",
-   "desc": "移远（Quectel）WWAN 模块支持。",
+   "desc": "Support for Quectel WWAN modules",
    "desc_en": "Support for Quectel WWAN modules",
    "cat": "协议",
    "kind": "proto",
@@ -4021,7 +4021,7 @@
   {
    "id": "luci-proto-relay",
    "name": "relay",
-   "desc": "relayd 伪桥接支持。",
+   "desc": "Support for relayd pseudo bridges",
    "desc_en": "Support for relayd pseudo bridges",
    "cat": "协议",
    "kind": "proto",
@@ -4041,7 +4041,7 @@
   {
    "id": "luci-proto-sstp",
    "name": "sstp",
-   "desc": "SSTP VPN 协议支持。",
+   "desc": "Support for SSTP",
    "desc_en": "Support for SSTP",
    "cat": "协议",
    "kind": "proto",
@@ -4061,7 +4061,7 @@
   {
    "id": "luci-proto-unet",
    "name": "unet",
-   "desc": "unetd VPN 协议支持。",
+   "desc": "Support for unetd VPN",
    "desc_en": "Support for unetd VPN",
    "cat": "协议",
    "kind": "proto",
@@ -4082,7 +4082,7 @@
   {
    "id": "luci-proto-vpnc",
    "name": "vpnc",
-   "desc": "VPNC（Cisco IPSec）客户端。",
+   "desc": "Support for VPNC VPN",
    "desc_en": "Support for VPNC VPN",
    "cat": "协议",
    "kind": "proto",
@@ -4102,7 +4102,7 @@
   {
    "id": "luci-proto-vti",
    "name": "vti",
-   "desc": "VTI 虚拟隧道接口。",
+   "desc": "Support for VTI interfaces",
    "desc_en": "Support for VTI interfaces",
    "cat": "协议",
    "kind": "proto",
@@ -4122,7 +4122,7 @@
   {
    "id": "luci-proto-vxlan",
    "name": "vxlan",
-   "desc": "VXLAN 虚拟扩展局域网（RFC7348）。",
+   "desc": "Support for Virtual eXtensible Local Area Network (VXLAN, RFC7348)",
    "desc_en": "Support for Virtual eXtensible Local Area Network (VXLAN, RFC7348)",
    "cat": "协议",
    "kind": "proto",
@@ -4166,7 +4166,7 @@
   {
    "id": "luci-proto-xfrm",
    "name": "xfrm",
-   "desc": "XFRM 接口支持。",
+   "desc": "Support for XFRM interfaces",
    "desc_en": "Support for XFRM interfaces",
    "cat": "协议",
    "kind": "proto",
@@ -4186,7 +4186,7 @@
   {
    "id": "luci-proto-yggdrasil",
    "name": "yggdrasil",
-   "desc": "Yggdrasil 去中心化网络协议。",
+   "desc": "Support for Yggdrasil Network",
    "desc_en": "Support for Yggdrasil Network",
    "cat": "协议",
    "kind": "proto",
@@ -4227,7 +4227,7 @@
   {
    "id": "luci-theme-bootstrap",
    "name": "bootstrap",
-   "desc": "Bootstrap 默认主题。",
+   "desc": "Bootstrap Theme (default)",
    "desc_en": "Bootstrap Theme (default)",
    "cat": "主题",
    "kind": "theme",
@@ -4245,7 +4245,7 @@
   {
    "id": "luci-theme-material",
    "name": "material",
-   "desc": "Material Design 风格主题。",
+   "desc": "Material Theme",
    "desc_en": "Material Theme",
    "cat": "主题",
    "kind": "theme",
@@ -4263,7 +4263,7 @@
   {
    "id": "luci-theme-openwrt",
    "name": "openwrt",
-   "desc": "OpenWrt.org 经典主题。",
+   "desc": "LuCI OpenWrt.org theme",
    "desc_en": "LuCI OpenWrt.org theme",
    "cat": "主题",
    "kind": "theme",
@@ -4281,7 +4281,7 @@
   {
    "id": "luci-theme-openwrt-2020",
    "name": "openwrt-2020",
-   "desc": "OpenWrt 2020 现代主题。",
+   "desc": "LuCI modern OpenWrt theme",
    "desc_en": "LuCI modern OpenWrt theme",
    "cat": "主题",
    "kind": "theme",
