@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# 由「机型 + 插件清单」生成 .config，分三步：
+# 由「机型 + 插件清单」生成 .config，分四步：
 #   ⓪ 铺上源码仓库自带的发行版默认配置（configs/<subtarget>.config 等），
 #      这类文件里放的往往是发行版"额外补充"的包（例：ponwrt 的整条 PON 栈），
 #      官方构建用 scripts/kconfig.pl + 合并，这里不合并就会丢
 #   ① 再写目标平台和机型 → make defconfig → 得到该机型的默认配置，并确认机型真的生效
+#   ①b 核对机型自己声明的 DEVICE_PACKAGES：驱动类没进 .config 就补成 =y，
+#      补不上直接失败（=m 的包不会装进固件，光看编译成功发现不了）
 #   ② 再追加所选插件 → make defconfig → 逐个确认插件真的生效
 # 机型不存在、或有插件没生效（依赖缺失 / 源码里没有这个包），直接失败并说明原因，
 # 不会等编译几个小时后才发现固件里少了东西。
@@ -67,6 +69,132 @@ else
   echo "源码仓库没有匹配的 configs/*.config，只用机型默认配置"
 fi
 
+# ---------------------------------------------------------------------------
+# 机型声明的 DEVICE_PACKAGES 必须真的进镜像
+#
+# 选中 profile 后，target-metadata.pl 会对该机型的 DEVICE_PACKAGES 逐个
+# select DEFAULT_x，而 .config-package.in 里 PACKAGE_x 的默认值就是
+# "default y if DEFAULT_x"。问题在于默认值只在符号没被赋值时才生效：
+# 源码 configs/*.config（或上传的底稿）里只要留着一行 PACKAGE_x=m，就把这个
+# 默认值压死了。而 =m 在镜像构建里的意思是"编成 ipk 放进软件源，不装进固件"，
+# 板子上就没有这个包。ponwrt 官方镜像缺 kmod-airoha-en7572 就是这么来的
+# （configs/an7581.config 写的 =m），后果是光口永远 DOWN，内核只报
+# "airoha-xpon: failed to obtain the optical frontend provider"。
+#
+# 所以这里以 tmp/.targetinfo 里机型自己声明的包为准（make 展开后的最终列表，
+# 已经算过 += 和 -变体），缺的补成 =y 再 defconfig：驱动补不上直接失败，其余只
+# 写进构建说明。唯一例外是被同类包顶替的（wpad-openssl 换成 wpad-basic 之类），
+# 按 Provides 判断，尊重模板里的选择，不重复装。
+# ---------------------------------------------------------------------------
+declare -A DECL=()
+profile_pkgs() {
+  [ -n "${P:-}" ] || return 0
+  [ -f tmp/.targetinfo ] || return 0
+  awk -v id="DEVICE_$P" '
+    /^Target-Profile:/ { cur = $2; next }
+    cur == id && /^Target-Profile-Packages:/ {
+      sub(/^[^:]*:[ \t]*/, ""); print; exit
+    }' tmp/.targetinfo 2>/dev/null
+}
+declared_pkgs() {   # 按 Makefile 里 + / - 的写法算出机型的最终包集合
+  local t
+  DECL=()
+  for t in $(profile_pkgs); do
+    case "$t" in
+      -*) unset "DECL[${t#-}]" ;;
+      +*) DECL["${t#+}"]=1 ;;
+      *@*|*:*|*'$'*) continue ;;
+      *) [ -n "$t" ] && DECL["$t"]=1 ;;
+    esac
+  done
+}
+is_driver() { case "$1" in kmod-*|*-firmware) return 0 ;; *) return 1 ;; esac; }
+# 包的 Provides（虚拟包名），wpad-openssl / wpad-basic-mbedtls 都 provides wpad
+provides_of() {
+  awk -v p="$1" '$0=="Package: "p{f=1; next}
+    f && /^Provides:/ { sub(/^Provides:[ \t]*/, ""); print; exit }
+    f && /^@@/ { exit }' tmp/.packageinfo 2>/dev/null
+}
+# 已经启用的包里，谁提供了同样的虚拟包（用来判断"用户是不是有意换成了同类包"）
+enabled_provides_map() {
+  awk 'FNR==NR {
+         if ($0 ~ /^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$/) {
+           n=$0; sub(/^CONFIG_PACKAGE_/, "", n); sub(/=y$/, "", n); EN[n]=1
+         }
+         next
+       }
+       /^Package: / { pkg=$2; next }
+       /^Provides:/ { for (i=2; i<=NF; i++) if (pkg in EN) print $i, pkg }
+      ' .config tmp/.packageinfo 2>/dev/null
+}
+# 若 $1 已被别的同类包顶替，输出顶替者并返回 0
+substituted_by() {
+  local v other
+  for v in $(provides_of "$1"); do
+    other=$(awk -v v="$v" -v q="$1" '$1==v && $2!=q { print $2; exit }' /tmp/enabled-provides 2>/dev/null)
+    [ -n "$other" ] && { echo "$other"; return 0; }
+  done
+  return 1
+}
+
+enforce_device_packages() {
+  local round p add skip drv other miss o off
+  [ -n "${P:-}" ] || return 0
+  if [ ! -f tmp/.targetinfo ]; then echo "没有 tmp/.targetinfo，跳过机型包核对"; return 0; fi
+  declared_pkgs
+  [ ${#DECL[@]} -gt 0 ] || return 0
+  enabled_provides_map > /tmp/enabled-provides
+
+  for round in 1 2; do
+    add=""; skip=""; off=""
+    for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
+      grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
+      if o=$(substituted_by "$p"); then skip="$skip $p→$o"; continue; fi
+      # 配置里明确写了 "# ... is not set"：应用类尊重这个选择，驱动类照补（驱动缺了
+      # 设备不工作，而且编译不报错，属于"看不见的缺"）
+      if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
+        off="$off $p"; continue
+      fi
+      add="$add $p"
+    done
+    if [ -n "${skip// /}" ]; then
+      echo "机型声明的包已有同类替代，按模板的选择保留：${skip# }" >> /tmp/build-notes
+      echo "机型声明的包已有同类替代，不重复装：${skip# }"
+    fi
+    if [ -n "${off// /}" ]; then
+      echo "机型声明的应用在配置里被显式关掉，保持关闭：${off# }" >> /tmp/build-notes
+      echo "机型声明的应用在配置里被显式关掉，按配置保持关闭：${off# }"
+    fi
+    [ -n "${add// /}" ] || break
+    for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
+    echo "机型 $P 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
+    echo "机型 $P 声明需要的包补成 =y：${add# }" >> /tmp/build-notes
+    make defconfig 2>&1 | tee -a /tmp/defconfig.log
+    enabled_provides_map > /tmp/enabled-provides
+  done
+
+  drv=""; other=""
+  for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
+    grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
+    substituted_by "$p" > /dev/null && continue
+    if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then continue; fi
+    if is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
+  done
+  if [ -n "${drv// /}" ]; then
+    { echo "机型 $P 声明的驱动没能生效：${drv# }"
+      echo "这些包在源码 configs/*.config 或上传底稿里被写成了 =m 或 n（=m 只编 ipk，不会装进固件），或者依赖不满足。"
+      echo "把对应的行删掉或改成 =y 再编译；确实不需要，就改 target/linux/.../image 里这个机型的 DEVICE_PACKAGES。"
+    } > /tmp/config-error
+    echo "::error::$(head -n1 /tmp/config-error)"
+    cat /tmp/config-error
+    exit 1
+  fi
+  if [ -n "${other// /}" ]; then
+    echo "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）" >> /tmp/build-notes
+    echo "提示：机型声明的应用有 $(echo $other | wc -w) 个没进配置（${other# }），驱动都在，不影响开机"
+  fi
+}
+
 if [ -n "$P" ]; then
   # 机型行写在最后：前面的 seed 里可能有同一个符号的相反取值，后写覆盖先写
   printf 'CONFIG_TARGET_%s=y\nCONFIG_TARGET_%s_%s=y\nCONFIG_TARGET_%s_%s_DEVICE_%s=y\n' "$m" "$m" "$s" "$m" "$s" "$P" >> .config
@@ -89,6 +217,9 @@ if [ -n "$P" ]; then
       echo "根文件系统分区 ${cur}MB → ${ROOTFS_MB}MB"
     fi ;;
   esac
+
+  # 机型自己声明的驱动必须都在 .config 里（理由见上面的长注释）
+  enforce_device_packages
 fi
 
 # 追加所选插件，再让源码补全依赖

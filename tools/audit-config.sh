@@ -64,7 +64,9 @@ if [ ${#drv_missing[@]} -gt 0 ]; then
 	status=1
 fi
 if [ ${#drv_m[@]} -gt 0 ]; then
-	echo "== 源码里是 =y、这份 config 写成 =m 的驱动（${#drv_m[@]} 个，单机型镜像建议改 =y）=="
+	echo "== 这份 config 把驱动写成了 =m（${#drv_m[@]} 个）=="
+	echo "   =m 只编 ipk，不进镜像；构建时 gen-config.sh / write-dotconfig.sh 会按机型"
+	echo "   DEVICE_PACKAGES 把它们补成 =y，这里列出来只是让你知道差在哪："
 	printf '  %s\n' "${drv_m[@]}"
 	echo
 fi

@@ -41,6 +41,109 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
 
   (cd openwrt && make defconfig)
 
+  # 机型自己声明的包必须都在配置里。原理见 gen-config.sh 里同名函数上方的注释：
+  # 底稿里一行 PACKAGE_x=m 会压掉 kconfig 的 "default y if DEFAULT_x"，而 =m 只编
+  # ipk、不进固件 —— ponwrt 的 kmod-airoha-en7572 就是这样丢的，编译不报错、PON
+  # 永远起不来。这里在 openwrt/ 里跑，逻辑与 gen-config.sh 完全一致（含同类替代检查）。
+  P=$(jq -r '.profile // ""' config.json)
+  (
+    cd openwrt
+    declare -A DECL=()
+    profile_pkgs() {
+      [ -n "$P" ] || return 0
+      [ -f tmp/.targetinfo ] || return 0
+      awk -v id="DEVICE_$P" '
+        /^Target-Profile:/ { cur = $2; next }
+        cur == id && /^Target-Profile-Packages:/ {
+          sub(/^[^:]*:[ \t]*/, ""); print; exit
+        }' tmp/.targetinfo 2>/dev/null
+    }
+    declared_pkgs() {
+      local t
+      DECL=()
+      for t in $(profile_pkgs); do
+        case "$t" in
+          -*) unset "DECL[${t#-}]" ;;
+          +*) DECL["${t#+}"]=1 ;;
+          *@*|*:*|*'$'*) continue ;;
+          *) [ -n "$t" ] && DECL["$t"]=1 ;;
+        esac
+      done
+    }
+    is_driver() { case "$1" in kmod-*|*-firmware) return 0 ;; *) return 1 ;; esac; }
+    provides_of() {
+      awk -v p="$1" '$0=="Package: "p{f=1; next}
+        f && /^Provides:/ { sub(/^Provides:[ \t]*/, ""); print; exit }
+        f && /^@@/ { exit }' tmp/.packageinfo 2>/dev/null
+    }
+    enabled_provides_map() {
+      awk 'FNR==NR {
+             if ($0 ~ /^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$/) {
+               n=$0; sub(/^CONFIG_PACKAGE_/, "", n); sub(/=y$/, "", n); EN[n]=1
+             }
+             next
+           }
+           /^Package: / { pkg=$2; next }
+           /^Provides:/ { for (i=2; i<=NF; i++) if (pkg in EN) print $i, pkg }
+          ' .config tmp/.packageinfo 2>/dev/null
+    }
+    substituted_by() {
+      local v other
+      for v in $(provides_of "$1"); do
+        other=$(awk -v v="$v" -v q="$1" '$1==v && $2!=q { print $2; exit }' /tmp/enabled-provides 2>/dev/null)
+        [ -n "$other" ] && { echo "$other"; return 0; }
+      done
+      return 1
+    }
+    [ -n "$P" ] && [ -f tmp/.targetinfo ] || exit 0
+    declared_pkgs
+    [ ${#DECL[@]} -gt 0 ] || exit 0
+    enabled_provides_map > /tmp/enabled-provides
+    for round in 1 2; do
+      add=""; skip=""; off=""
+      for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
+        grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
+        if o=$(substituted_by "$p"); then skip="$skip $p→$o"; continue; fi
+        # 底稿明确写了 "# ... is not set"：应用类尊重它，驱动类照补（驱动缺了设备不工作，
+        # 而且编译照样成功，属于看不见的缺）
+        if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
+          off="$off $p"; continue
+        fi
+        add="$add $p"
+      done
+      if [ -n "${skip// /}" ]; then
+        echo "机型声明的包已有同类替代，按底稿的选择保留：${skip# }" >> /tmp/build-notes
+      fi
+      if [ -n "${off// /}" ]; then
+        echo "机型声明的应用在底稿里被显式关掉，按底稿保持关闭：${off# }" >> /tmp/build-notes
+      fi
+      [ -n "${add// /}" ] || break
+      for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
+      echo "机型 $P 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig" >> /tmp/build-notes
+      make defconfig || true
+      enabled_provides_map > /tmp/enabled-provides
+    done
+    drv=""; other=""
+    for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
+      grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
+      substituted_by "$p" > /dev/null && continue
+      if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then continue; fi
+      if is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
+    done
+    if [ -n "${drv// /}" ]; then
+      { echo "机型 $P 声明的驱动没能生效：${drv# }"
+        echo "底稿里这些包是 =m 或 n（=m 只编 ipk，不会装进固件），或者依赖不满足。"
+        echo "把底稿里对应的行删掉或改成 =y 再编译；确实不需要，就改 target/linux/.../image 里这个机型的 DEVICE_PACKAGES。"
+      } > /tmp/config-error
+      echo "::error::$(head -n1 /tmp/config-error)"
+      cat /tmp/config-error
+      exit 1
+    fi
+    if [ -n "${other// /}" ]; then
+      echo "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）" >> /tmp/build-notes
+    fi
+  ) || exit 1
+
   # 审计：源码默认启用、但最终 .config 里没有的包。底稿不完整时这里会列出来。
   # 同一个符号在合并结果里可能出现多次（seed 一次、底稿一次），以最后一行为准。
   if [ ${#SEEDS[@]} -gt 0 ]; then
