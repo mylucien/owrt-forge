@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# 由「机型 + 插件清单」生成 .config，分两步，让源码自己生成默认配置：
-#   ① 只写目标平台和机型 → make defconfig → 得到该机型的默认配置，并确认机型真的生效
+# 由「机型 + 插件清单」生成 .config，分三步：
+#   ⓪ 铺上源码仓库自带的发行版默认配置（configs/<subtarget>.config 等），
+#      这类文件里放的往往是发行版"额外补充"的包（例：ponwrt 的整条 PON 栈），
+#      官方构建用 scripts/kconfig.pl + 合并，这里不合并就会丢
+#   ① 再写目标平台和机型 → make defconfig → 得到该机型的默认配置，并确认机型真的生效
 #   ② 再追加所选插件 → make defconfig → 逐个确认插件真的生效
 # 机型不存在、或有插件没生效（依赖缺失 / 源码里没有这个包），直接失败并说明原因，
 # 不会等编译几个小时后才发现固件里少了东西。
@@ -20,12 +23,53 @@ if [ -n "$P" ]; then
   [[ "$T" =~ ^[A-Za-z0-9_+-][A-Za-z0-9_.+-]*/[A-Za-z0-9_+-][A-Za-z0-9_.+-]*$ ]] || { echo "::error::target 格式非法: $T"; exit 1; }
 fi
 
-# 不叠加任何旧配置：模板里的机型和插件清单就是唯一来源
+m="${T%%/*}"; s="${T##*/}"
+
+# ---------------------------------------------------------------------------
+# 源码仓库自带的发行版默认配置
+#
+# 很多发行版（ponwrt、immortalwrt 衍生分支等）把"本发行版默认启用"的包放在 configs/ 下，
+# 官方构建流程是：
+#     ./scripts/kconfig.pl + "configs/<subtarget>.config" configs/release.config > .config
+#     make defconfig
+# 这些包大多不在 target.mk 的 DEFAULT_PACKAGES 里（ponwrt 的 kmod-airoha-xpon、
+# kmod-airoha-pon-frontend、kmod-airoha-en7572、airoha-pond 就是这样），
+# 只写机型再 defconfig 是拿不到的，固件里会静默少掉一层驱动。
+# 找不到 configs/ 就当普通 OpenWrt 处理，行为与原来完全一致。
+# ---------------------------------------------------------------------------
+SEEDS=()
+if [ -n "$T" ]; then
+  for f in "configs/${s}.config" "configs/${m}_${s}.config" "configs/${s}_${P}.config" "configs/${P}.config"; do
+    [ -n "$P" ] || continue
+    [ -f "$f" ] && SEEDS+=("$f") || true
+  done
+  # 没有 profile（进 menuconfig 的流程）时，按 subtarget 命名找
+  if [ -z "$P" ] && [ -f "configs/${s}.config" ]; then SEEDS+=("configs/${s}.config"); fi
+fi
+[ -f configs/release.config ] && SEEDS+=("configs/release.config") || true
+
+# 合并前摘掉"整包全设备"类选项：defconfig 会照单全收，把整个 subtarget 的设备都编一遍，
+# 单机型构建既浪费空间也容易踩到别人的板子。
+seed_strip() {
+  grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_(MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)([= ]|$)' \
+  | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_([A-Za-z0-9_]+_)?DEVICE_' \
+  | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_DEVICE_PACKAGES_'
+}
+
+# 不叠加任何旧配置：源码默认配置 + 模板里的机型和插件清单就是唯一来源
 rm -f .config
 
+if [ ${#SEEDS[@]} -gt 0 ]; then
+  cat "${SEEDS[@]}" | seed_strip >> .config || true
+  echo "已合并源码默认配置：${SEEDS[*]}"
+  echo "已合并源码默认配置：${SEEDS[*]}" >> /tmp/build-notes
+else
+  echo "源码仓库没有匹配的 configs/*.config，只用机型默认配置"
+fi
+
 if [ -n "$P" ]; then
-  m="${T%%/*}"; s="${T##*/}"
-  printf 'CONFIG_TARGET_%s=y\nCONFIG_TARGET_%s_%s=y\nCONFIG_TARGET_%s_%s_DEVICE_%s=y\n' "$m" "$m" "$s" "$m" "$s" "$P" > .config
+  # 机型行写在最后：前面的 seed 里可能有同一个符号的相反取值，后写覆盖先写
+  printf 'CONFIG_TARGET_%s=y\nCONFIG_TARGET_%s_%s=y\nCONFIG_TARGET_%s_%s_DEVICE_%s=y\n' "$m" "$m" "$s" "$m" "$s" "$P" >> .config
   make defconfig 2>&1 | tee -a /tmp/defconfig.log
   if ! grep -q "^CONFIG_TARGET_${m}_${s}_DEVICE_${P}=y" .config; then
     echo "机型 ${P} 在 ${T} 里不存在或没有生效。请回到模板页重新选择机型（源码版本可能改过机型名）。" | tee /tmp/config-error
