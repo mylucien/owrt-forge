@@ -48,11 +48,14 @@
 catalog.json              插件目录（Worker 在线读取），格式见 CATALOG.md
 catalog-src/overrides.json  手工维护区：中文名、第三方插件、分类规则、内置源码项目
 catalog.schema.json       目录格式的 JSON Schema
-tools/                    插件目录同步与嵌入脚本
-worker/index.js           Cloudflare Worker
+src/                      前端源码（样式 + 三段 JS），见 src/README.md
+tools/                    目录同步、内置目录嵌入、前端注入脚本
+worker/index.js           Cloudflare Worker（含内联的 APP_CSS / APP_JS，可直接部署）
 scripts/                  编译用的脚本
 .github/workflows/        build-openwrt.yml（编译）、sync-catalog.yml（每周同步插件目录）
 ```
+
+前端要改样式或页面，改 `src/` 后跑 `python3 tools/build_ui.py` 重新注入 `worker/index.js`（`--preview 文件` 可以另存一份静态页本地看），再部署 Worker 即可；只改插件目录时不用动前端。
 
 ## 注意
 - 更新插件信息只需改 `catalog-src/overrides.json` 并运行 `python3 tools/sync_catalog.py`，提交后商店点「刷新目录」即可，无需重新部署 Worker。详见 `CATALOG.md`。

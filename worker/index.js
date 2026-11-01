@@ -1781,1956 +1781,2942 @@ function json(data, status = 200, extraHeaders = {}) {
     catch (e) { await env.DB.prepare("UPDATE builds SET status='failed', fail_reason=?, updated_at=? WHERE id=?").bind('触发失败: ' + e.message, now(), next.id).run(); }
   }
 
-  const APP_CSS = `:root {
-    --bg: #f8fafc;
-    --panel: #ffffff;
-    --panel-raised: #f1f5f9;
-    --border: #e2e8f0;
-    --border-soft: #eef2f7;
-    --text: #0f172a;
-    --text-dim: #475569;
-    --text-faint: #94a3b8;
-    --accent: #2563eb;
-    --accent-dim: #1d4ed8;
-    --accent-bg: rgba(37, 99, 235, 0.08);
-    --ok: #16a34a;
-    --ok-bg: rgba(22, 163, 74, 0.1);
-    --bad: #dc2626;
-    --bad-bg: rgba(220, 38, 38, 0.1);
-    --run: #2563eb;
-    --run-bg: rgba(37, 99, 235, 0.1);
-    --warn: #d97706;
-    --warn-bg: rgba(217, 119, 6, 0.1);
-    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    --font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
-    --radius: 8px;
-    --radius-lg: 12px;
+  const APP_CSS = `
+/* ============================================================
+   固件工坊 · UI 改版 Demo
+   Design tokens + components
+   ============================================================ */
+
+:root {
+  --bg: #f5f6fb;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --surface-3: #eef0f7;
+  --line: #e7e9f1;
+  --line-2: #dcdfeb;
+  --ink: #111527;
+  --ink-2: #4b5468;
+  --ink-3: #8d95a8;
+  --brand: #4c6ef5;
+  --brand-2: #3b5bdb;
+  --brand-soft: #eef1ff;
+  --brand-line: #ccd6ff;
+  --ok: #0f8a5f;
+  --ok-soft: #e7f7f0;
+  --warn: #a8630a;
+  --warn-soft: #fff4e4;
+  --bad: #c92a3e;
+  --bad-soft: #fdebed;
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --sh-1: 0 1px 2px rgba(17, 21, 39, .05);
+  --sh-2: 0 8px 24px -12px rgba(17, 21, 39, .18);
+  --sh-3: 0 24px 48px -24px rgba(17, 21, 39, .3);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  --side-w: 238px;
+}
+
+body[data-theme="dark"] {
+  --bg: #0c0e15;
+  --surface: #141824;
+  --surface-2: #181d2a;
+  --surface-3: #1f2534;
+  --line: #242a39;
+  --line-2: #2e3546;
+  --ink: #eef1f8;
+  --ink-2: #a6afc2;
+  --ink-3: #6d768b;
+  --brand: #7d95ff;
+  --brand-2: #6a84f5;
+  --brand-soft: rgba(125, 149, 255, .14);
+  --brand-line: rgba(125, 149, 255, .3);
+  --ok: #3ecf8e;
+  --ok-soft: rgba(62, 207, 142, .12);
+  --warn: #f0b45c;
+  --warn-soft: rgba(240, 180, 92, .12);
+  --bad: #ff7b8a;
+  --bad-soft: rgba(255, 123, 138, .12);
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .3);
+  --sh-2: 0 10px 30px -14px rgba(0, 0, 0, .7);
+  --sh-3: 0 28px 60px -28px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+a { color: var(--brand); text-decoration: none; }
+button, input, select, textarea { font-family: inherit; }
+code, .mono { font-family: var(--mono); }
+svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.tag svg { width: 11px; height: 11px; }
+.pill svg { width: 11px; height: 11px; }
+.sum svg { width: 13px; height: 13px; }
+::selection { background: var(--brand-soft); color: var(--brand-2); }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
+
+/* ---------------- 布局 ---------------- */
+.app { display: flex; min-height: 100vh; }
+
+.side {
+  width: var(--side-w);
+  flex: 0 0 var(--side-w);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px 14px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  border-right: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 20px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, #6b8cff, #3b5bdb);
+  box-shadow: 0 4px 12px -3px rgba(59, 91, 219, .55), inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+.brand-mark svg { width: 19px; height: 19px; }
+.brand-txt { display: flex; flex-direction: column; line-height: 1.2; }
+.brand-txt b { font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.brand-txt small { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: .04em; }
+
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3); padding: 14px 10px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent; position: relative;
+  transition: background .16s, color .16s, border-color .16s;
+}
+.nav-item svg { width: 17px; height: 17px; stroke-width: 1.7; opacity: .85; }
+.nav-item:hover { background: var(--surface-3); color: var(--ink); }
+.nav-item.active {
+  background: var(--surface); color: var(--brand-2);
+  border-color: var(--line); font-weight: 600;
+  box-shadow: var(--sh-1);
+}
+body[data-theme="dark"] .nav-item.active { color: var(--brand); }
+.nav-item.active svg { opacity: 1; color: var(--brand); }
+.nav-item.active::before {
+  content: ""; position: absolute; left: -14px; top: 9px; bottom: 9px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--brand);
+}
+.nav-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 99px; background: var(--brand); color: #fff;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  display: grid; place-items: center;
+}
+.nav-badge[hidden] { display: none; }
+.spinner-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft); animation: pulse 1.4s ease-in-out infinite;
+}
+
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.queue {
+  border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
+  background: var(--surface); box-shadow: var(--sh-1); cursor: pointer;
+}
+.queue:hover { border-color: var(--brand-line); }
+.queue-head {
+  display: flex; align-items: center; gap: 7px; padding: 9px 11px 7px;
+  font-size: 11px; font-family: var(--mono); letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.queue-body { padding: 0 11px 10px; }
+.queue-name { font-size: 12.5px; font-weight: 600; margin-bottom: 2px; }
+.queue-sub { font-size: 11.5px; color: var(--ink-3); font-family: var(--mono); margin-bottom: 8px; }
+.queue-bar { height: 4px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.queue-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #6b8cff, #3b5bdb); transition: width .5s ease; }
+.side-actions { display: flex; gap: 6px; }
+.side-actions .btn { flex: 1; justify-content: center; }
+
+.main { flex: 1; min-width: 0; }
+.main-inner { max-width: 1180px; margin: 0 auto; padding: 26px 34px 72px; }
+
+/* ---------------- 基础元素 ---------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 13px; border-radius: 10px; cursor: pointer;
+  font-size: 13px; font-weight: 550; line-height: 1.2; white-space: nowrap;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line-2); box-shadow: var(--sh-1);
+  transition: background .16s, border-color .16s, color .16s, transform .12s, box-shadow .16s;
+}
+.btn svg { width: 15px; height: 15px; stroke-width: 1.8; }
+.btn:hover { background: var(--surface-3); border-color: var(--line-2); }
+.btn:active { transform: translateY(1px); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn-primary {
+  background: linear-gradient(180deg, #5a7bff, #3b5bdb);
+  color: #fff; border-color: #3550c9;
+  box-shadow: 0 1px 2px rgba(49, 76, 190, .4), 0 8px 18px -10px rgba(59, 91, 219, .9), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.btn-primary:hover { background: linear-gradient(180deg, #6684ff, #3f5fe0); border-color: #3550c9; }
+.btn-soft { background: var(--brand-soft); color: var(--brand-2); border-color: transparent; box-shadow: none; }
+body[data-theme="dark"] .btn-soft { color: var(--brand); }
+.btn-soft:hover { background: var(--brand-soft); border-color: var(--brand-line); }
+.btn-ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-3); color: var(--ink); }
+.btn-danger { color: var(--bad); border-color: var(--line-2); }
+.btn-danger:hover { background: var(--bad-soft); border-color: var(--bad); }
+.btn-sm { padding: 5px 9px; font-size: 12px; border-radius: 8px; }
+.btn-sm svg { width: 13px; height: 13px; }
+.btn-icon { width: 34px; height: 34px; padding: 0; }
+.btn-lg { padding: 11px 18px; font-size: 14px; border-radius: 11px; }
+.btn-block { width: 100%; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 9px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
+  background: var(--surface-3); color: var(--ink-2);
+}
+.pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .85; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.run { background: var(--brand-soft); color: var(--brand-2); }
+body[data-theme="dark"] .pill.run { color: var(--brand); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.run::before { animation: pulse 1.4s ease-in-out infinite; }
+.pill.plain::before { display: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.75); } }
+
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; height: 21px; padding: 0 7px;
+  border-radius: 6px; background: var(--surface-3); color: var(--ink-2);
+  font-family: var(--mono); font-size: 11px; white-space: nowrap;
+}
+
+.input, .select {
+  width: 100%; padding: 8px 11px; border-radius: 9px;
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
+  font-size: 13px; transition: border-color .16s, box-shadow .16s;
+}
+.input::placeholder { color: var(--ink-3); }
+.input:focus, .select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238d95a8' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label { font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: .01em; }
+.field .hint { font-size: 11.5px; color: var(--ink-3); line-height: 1.5; }
+
+.switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .track {
+  width: 36px; height: 21px; border-radius: 99px; background: var(--surface-3);
+  border: 1px solid var(--line-2); position: relative; transition: background .18s, border-color .18s;
+  flex: 0 0 auto;
+}
+.switch .track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
+  border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(17, 21, 39, .25);
+  transition: transform .18s;
+}
+.switch input:checked + .track { background: var(--brand); border-color: var(--brand); }
+.switch input:checked + .track::after { transform: translateX(15px); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px var(--brand-soft); }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-3); border-radius: 10px; border: 1px solid var(--line); }
+.seg button {
+  border: 0; background: transparent; color: var(--ink-2); cursor: pointer;
+  padding: 5px 11px; border-radius: 7px; font-size: 12.5px; font-weight: 550;
+  transition: background .16s, color .16s, box-shadow .16s;
+}
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); }
+
+/* ---------------- 页头 ---------------- */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
+.eyebrow {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 8px;
+}
+.eyebrow b { color: var(--brand); font-weight: 600; }
+.page-head h1 { margin: 6px 0 0; font-size: 23px; font-weight: 650; letter-spacing: -.025em; line-height: 1.25; }
+.page-head .sub { color: var(--ink-2); font-size: 13px; margin-top: 5px; max-width: 62ch; }
+.page-head .actions { display: flex; gap: 8px; align-items: center; }
+
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
+.crumbs a { color: var(--ink-2); }
+.crumbs svg { width: 12px; height: 12px; }
+
+/* ---------------- 卡片 ---------------- */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--sh-1);
+}
+.card-pad { padding: 18px 20px; }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 15px 18px; border-bottom: 1px solid var(--line);
+}
+.card-head h2 { margin: 0; font-size: 13.5px; font-weight: 650; letter-spacing: -.01em; }
+.card-head .sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.card-head .right { display: flex; align-items: center; gap: 8px; }
+
+/* ---------------- 统计条 ---------------- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 13px 15px; box-shadow: var(--sh-1); position: relative; overflow: hidden;
+}
+.stat-k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.stat-v { font-size: 21px; font-weight: 650; letter-spacing: -.03em; margin-top: 4px; display: flex; align-items: baseline; gap: 5px; }
+.stat-v small { font-size: 11.5px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.stat-d { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.stat-d b { color: var(--ok); font-weight: 600; }
+.stat-d b.bad { color: var(--bad); }
+
+/* ---------------- 模板卡片 ---------------- */
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.tpl {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 16px 17px 14px; box-shadow: var(--sh-1); cursor: pointer;
+  transition: border-color .16s, box-shadow .18s, transform .18s;
+  display: flex; flex-direction: column; gap: 11px; position: relative; overflow: hidden;
+}
+.tpl::after {
+  content: ""; position: absolute; inset: 0 0 auto; height: 2px;
+  background: linear-gradient(90deg, var(--brand), #a78bfa);
+  opacity: 0; transition: opacity .2s;
+}
+.tpl:hover { border-color: var(--brand-line); box-shadow: var(--sh-2); transform: translateY(-2px); }
+.tpl:hover::after { opacity: 1; }
+.tpl-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tpl-name { font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
+.tpl-dev { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tpl-dev i { font-style: normal; opacity: .45; }
+.tpl-chips { display: flex; flex-wrap: wrap; gap: 5px; min-height: 21px; }
+.tpl-foot {
+  display: flex; align-items: center; gap: 10px; padding-top: 11px;
+  border-top: 1px solid var(--line); margin-top: auto;
+}
+.tpl-foot .last { font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 5px; }
+.tpl-foot .spacer { margin-left: auto; }
+
+.tpl-new {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 14px; padding: 15px; border: 1px dashed var(--line-2); border-radius: var(--r-lg);
+  background: transparent; cursor: pointer; color: var(--ink-3); font-size: 13px; font-weight: 550;
+  transition: all .18s; width: 100%; font-family: inherit;
+}
+.tpl-new:hover { border-color: var(--brand); color: var(--brand-2); background: var(--brand-soft); }
+.tpl-new .circle {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-1);
+}
+.tpl-new .circle svg { width: 14px; height: 14px; }
+.tpl-new small { font-size: 11.5px; opacity: .8; font-weight: 400; }
+
+/* 插件 chip */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px;
+  border-radius: 7px; background: var(--surface-2); border: 1px solid var(--line);
+  font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
+}
+.chip .dot { width: 5px; height: 5px; border-radius: 50%; flex: 0 0 5px; margin-right: 1px; }
+.chip .x { border: 0; background: none; padding: 0 0 0 2px; cursor: pointer; color: var(--ink-3); display: grid; place-items: center; }
+.chip .x:hover { color: var(--bad); }
+.chip svg { width: 10px; height: 10px; }
+
+/* ---------------- 步骤条 ---------------- */
+.steps { display: flex; align-items: center; gap: 0; margin-bottom: 18px; }
+.step { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink-3); }
+.step .n {
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-3);
+}
+.step.on { color: var(--ink); font-weight: 600; }
+.step.on .n { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 0 0 3px var(--brand-soft); }
+.step.done .n { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.step-line { width: 34px; height: 1px; background: var(--line-2); margin: 0 12px; }
+
+/* ---------------- 商店 ---------------- */
+.store-top {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1.2fr; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 15px 16px; box-shadow: var(--sh-1); margin-bottom: 16px;
+}
+.store-layout { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 18px; align-items: start; }
+.filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.search { position: relative; flex: 1; min-width: 180px; }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--ink-3); }
+.search .input { padding-left: 31px; }
+.cats { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+.cat {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px;
+  font-size: 12px; font-weight: 550; color: var(--ink-2); cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); transition: all .16s;
+}
+.cat:hover { border-color: var(--line-2); background: var(--surface-3); }
+.cat .n { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.cat.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+body[data-theme="dark"] .cat.on { background: var(--brand); border-color: var(--brand); color: #0c0e15; }
+.cat.on .n { color: inherit; opacity: .6; }
+
+.plugins { display: grid; grid-template-columns: repeat(auto-fill, minmax(238px, 1fr)); gap: 10px; }
+.plugin {
+  position: relative; display: flex; gap: 11px; padding: 12px 13px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  cursor: pointer; transition: border-color .16s, box-shadow .16s, background .16s, transform .14s;
+  box-shadow: var(--sh-1);
+}
+.plugin:hover { border-color: var(--brand-line); box-shadow: var(--sh-2); transform: translateY(-1px); }
+.plugin.on { border-color: var(--brand); background: linear-gradient(180deg, var(--brand-soft), var(--surface) 70%); box-shadow: 0 0 0 3px var(--brand-soft); }
+.plugin .tile {
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px;
+  display: grid; place-items: center; font-weight: 700; font-size: 14px;
+  letter-spacing: -.02em;
+}
+.plugin .body { min-width: 0; flex: 1; }
+.plugin .nm { font-size: 13px; font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: 5px; }
+.plugin .nm .rec { color: var(--brand); display: inline-flex; }
+.plugin .nm .rec svg { width: 11px; height: 11px; }
+.plugin .pk { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.plugin .ds { font-size: 11.5px; color: var(--ink-2); line-height: 1.45; margin-top: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.plugin .meta { display: flex; gap: 8px; align-items: center; margin-top: 7px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.plugin .tick {
+  position: absolute; top: 9px; right: 9px; width: 17px; height: 17px; border-radius: 50%;
+  border: 1.5px solid var(--line-2); display: grid; place-items: center; color: transparent;
+  background: var(--surface); transition: all .16s;
+}
+.plugin .tick svg { width: 10px; height: 10px; stroke-width: 3; }
+.plugin.on .tick { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* 已选清单 */
+.basket { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 12px; }
+.basket-inner { display: flex; flex-direction: column; }
+.basket-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+.basket-head h2 { margin: 0; font-size: 13.5px; font-weight: 650; display: flex; align-items: center; gap: 7px; }
+.basket-head .cnt {
+  font-family: var(--mono); font-size: 10.5px; background: var(--brand-soft); color: var(--brand-2);
+  padding: 2px 6px; border-radius: 99px; font-weight: 600;
+}
+body[data-theme="dark"] .basket-head .cnt { color: var(--brand); }
+.basket-list { padding: 0 10px; max-height: 232px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.basket-list::-webkit-scrollbar { width: 8px; }
+.basket-list::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; }
+.bi { display: flex; align-items: center; gap: 8px; padding: 6px 7px; border-radius: 8px; font-size: 12.5px; }
+.bi:hover { background: var(--surface-2); }
+.bi .tile-s { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: 0 0 20px; }
+.bi .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bi .x { margin-left: auto; border: 0; background: none; color: var(--ink-3); cursor: pointer; display: grid; place-items: center; padding: 2px; border-radius: 4px; }
+.bi .x:hover { color: var(--bad); background: var(--bad-soft); }
+.bi .x svg { width: 12px; height: 12px; }
+.basket-empty { padding: 26px 16px; text-align: center; color: var(--ink-3); font-size: 12.5px; }
+.basket-body { padding: 12px 16px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 11px; }
+.sum { display: flex; align-items: baseline; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); }
+.sum b { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.meter { height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #6b8cff, #3b5bdb); transition: width .35s; }
+.meter.warn i { background: linear-gradient(90deg, #f5b544, #e08a10); }
+.meter-hint { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+.note {
+  display: flex; gap: 8px; padding: 9px 11px; border-radius: 9px;
+  background: var(--warn-soft); color: var(--warn); font-size: 11.5px; line-height: 1.5;
+  border: 1px solid transparent;
+}
+.note svg { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 1px; }
+
+/* ---------------- 详情 ---------------- */
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
+.hero {
+  background: linear-gradient(135deg, var(--surface) 40%, var(--brand-soft));
+  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px 22px;
+  box-shadow: var(--sh-1); margin-bottom: 16px; position: relative; overflow: hidden;
+}
+.hero::after {
+  content: ""; position: absolute; right: -60px; top: -80px; width: 240px; height: 240px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(76, 110, 245, .16), transparent 65%);
+}
+.hero h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
+.hero .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 14px; margin-top: 16px; position: relative; }
+.kv .k { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.kv .v { font-size: 13px; font-weight: 550; margin-top: 2px; }
+.kv .v.mono { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+
+.opt-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.opt-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+.opt-row .t { font-size: 13px; font-weight: 600; }
+.opt-row .d { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; max-width: 46ch; line-height: 1.5; }
+.opt-row .c { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+.opt-row .c .select { width: auto; min-width: 156px; }
+
+.chip-box { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------------- 构建记录 ---------------- */
+.build {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 13px 15px; margin-bottom: 9px; box-shadow: var(--sh-1);
+  transition: border-color .16s, box-shadow .16s;
+}
+.build:hover { border-color: var(--line-2); box-shadow: var(--sh-2); }
+.build-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.build-top .nm { font-size: 13.5px; font-weight: 600; }
+.build-top .tm { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.build-top .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.build-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 7px; font-size: 11.5px; color: var(--ink-3); }
+.build-meta .sep { opacity: .4; }
+.progress { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+.progress .bar { flex: 1; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; position: relative; }
+.progress .bar i {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, #6b8cff, #3b5bdb);
+  background-size: 200% 100%; animation: slide 2s linear infinite; transition: width .5s;
+}
+@keyframes slide { from { background-position: 0 0; } to { background-position: -200% 0; } }
+.progress .pct { font-family: var(--mono); font-size: 11px; color: var(--ink-2); width: 34px; text-align: right; }
+.fail-line {
+  margin-top: 9px; display: flex; align-items: flex-start; gap: 7px;
+  font-size: 12.5px; color: var(--bad); background: var(--bad-soft);
+  border-radius: 8px; padding: 8px 10px; line-height: 1.5;
+}
+.fail-line svg { width: 14px; height: 14px; flex: 0 0 14px; margin-top: 1px; }
+.fail-detail { margin-top: 8px; }
+.fail-detail > summary {
+  cursor: pointer; font-size: 12px; color: var(--ink-2); list-style: none;
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 0;
+}
+.fail-detail > summary::-webkit-details-marker { display: none; }
+.fail-detail > summary svg { width: 12px; height: 12px; transition: transform .15s; }
+.fail-detail[open] > summary svg { transform: rotate(90deg); }
+.fail-detail pre {
+  margin: 6px 0 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 8px; font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+  color: var(--ink-2); white-space: pre-wrap; word-break: break-word; max-height: 190px; overflow: auto;
+}
+.build-links { display: flex; gap: 12px; margin-top: 9px; flex-wrap: wrap; }
+.build-links a { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.build-links a svg { width: 12px; height: 12px; }
+
+.build.compact { padding: 10px 12px; margin-bottom: 8px; }
+.build.compact .build-top { gap: 7px; }
+.build.compact .build-top .nm { font-size: 12.5px; }
+.build.compact .build-top .tm { font-size: 10.5px; }
+.build.compact .build-meta { margin-top: 4px; font-size: 10.5px; gap: 5px; }
+.build.compact .timeline { margin-top: 7px; }
+.build.compact .build-links { display: none; }
+.build.compact .progress { margin-top: 7px; }
+.timeline { display: flex; align-items: center; gap: 0; margin-top: 10px; }
+.tl-step { display: flex; align-items: center; gap: 0; }
+.tl-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); flex: 0 0 7px; }
+.tl-dot.done { background: var(--ok); }
+.tl-dot.cur { background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.tl-dot.bad { background: var(--bad); }
+.tl-bar { width: 26px; height: 1px; background: var(--line-2); }
+.tl-bar.done { background: var(--ok); }
+
+/* ---------------- 空状态 / 其他 ---------------- */
+.empty { text-align: center; padding: 54px 20px; border: 1px dashed var(--line-2); border-radius: var(--r-lg); color: var(--ink-3); background: var(--surface); }
+.empty .g { width: 46px; height: 46px; border-radius: 13px; background: var(--surface-3); display: grid; place-items: center; margin: 0 auto 12px; color: var(--ink-3); }
+.empty .g svg { width: 22px; height: 22px; }
+.empty .m { font-size: 13.5px; color: var(--ink-2); font-weight: 600; }
+.empty .s { font-size: 12px; margin-top: 4px; }
+
+.code {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
+  color: var(--ink-2); max-height: 300px; overflow: auto; white-space: pre;
+}
+.code .c { color: var(--ink-3); }
+.code .v { color: var(--brand-2); }
+body[data-theme="dark"] .code .v { color: var(--brand); }
+
+.kbd { font-family: var(--mono); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--line); color: var(--ink-2); }
+
+/* ---------------- Toast / Modal ---------------- */
+.toasts { position: fixed; right: 22px; bottom: 22px; display: flex; flex-direction: column; gap: 9px; z-index: 90; }
+.toast {
+  display: flex; align-items: flex-start; gap: 9px; min-width: 240px; max-width: 360px;
+  padding: 11px 13px; border-radius: 11px; background: var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--sh-3);
+  font-size: 12.5px; animation: toast-in .22s cubic-bezier(.2, .8, .3, 1);
+}
+.toast .g { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 18px; background: var(--ok-soft); color: var(--ok); margin-top: 1px; }
+.toast .g svg { width: 11px; height: 11px; stroke-width: 3; }
+.toast.err .g { background: var(--bad-soft); color: var(--bad); }
+.toast.info .g { background: var(--brand-soft); color: var(--brand-2); }
+.toast b { display: block; font-size: 12.5px; margin-bottom: 1px; }
+.toast span { color: var(--ink-3); font-size: 11.5px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.overlay { position: fixed; inset: 0; background: rgba(12, 16, 30, .42); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 100; padding: 20px; animation: fade .16s; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  width: 100%; max-width: 520px; background: var(--surface); border-radius: var(--r-lg);
+  border: 1px solid var(--line); box-shadow: var(--sh-3); animation: pop .2s cubic-bezier(.2, .8, .3, 1);
+  max-height: 88vh; display: flex; flex-direction: column;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.modal-head h3 { margin: 0; font-size: 14.5px; font-weight: 650; }
+.modal-body { padding: 18px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+.modal-foot { padding: 13px 18px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------------- 动画 / 响应式 ---------------- */
+.fade-up { animation: up .28s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.stagger > * { animation: up .3s cubic-bezier(.2, .8, .3, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: .01s; }
+.stagger > *:nth-child(2) { animation-delay: .03s; }
+.stagger > *:nth-child(3) { animation-delay: .05s; }
+.stagger > *:nth-child(4) { animation-delay: .07s; }
+.stagger > *:nth-child(5) { animation-delay: .09s; }
+.stagger > *:nth-child(6) { animation-delay: .11s; }
+.stagger > *:nth-child(n+7) { animation-delay: .13s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+@media (max-width: 1080px) {
+  .store-layout, .detail-grid { grid-template-columns: 1fr; }
+  .basket { position: static; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .store-top { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 860px) {
+  .app { flex-direction: column; }
+  .side {
+    width: 100%; flex: none; height: auto; position: sticky; top: 0; z-index: 40;
+    flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px;
+    border-right: 0; border-bottom: 1px solid var(--line);
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
-  #app { min-height: 100vh; display: flex; flex-direction: column; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  button { font-family: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: var(--radius); padding: 7px 14px; transition: background .12s, border-color .12s, color .12s; }
-  button:hover { border-color: #cbd5e1; background: var(--panel-raised); }
-  button:active { transform: translateY(1px); }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button.primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
-  button.danger { color: var(--bad); border-color: rgba(220,38,38,.35); }
-  button.danger:hover { background: var(--bad-bg); border-color: var(--bad); }
-  button.ghost { background: transparent; border-color: transparent; color: var(--text-dim); padding: 6px 10px; }
-  button.ghost:hover { background: var(--panel-raised); color: var(--text); }
-  button.small { padding: 4px 10px; font-size: 12px; }
-  input, select, textarea { font-family: inherit; font-size: 13px; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 8px 10px; width: 100%; }
-  textarea { font-family: var(--font-mono); font-size: 12.5px; resize: vertical; line-height: 1.5; }
-  input::placeholder, textarea::placeholder { color: var(--text-faint); }
-  label { display: block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; }
-  .field { margin-bottom: 16px; }
-  .field-row { display: flex; gap: 12px; }
-  .field-row > .field { flex: 1; }
-  .hint { font-size: 12px; color: var(--text-faint); margin-top: 5px; }
-  code, .mono { font-family: var(--font-mono); }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
-  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 100px; letter-spacing: .02em; white-space: nowrap; }
-  .badge.ok { background: var(--ok-bg); color: var(--ok); }
-  .badge.bad { background: var(--bad-bg); color: var(--bad); }
-  .badge.run { background: var(--run-bg); color: var(--run); }
-  .badge.warn { background: var(--warn-bg); color: var(--warn); }
-  .badge.dim { background: var(--border-soft); color: var(--text-dim); }
-  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .toast-wrap { position: fixed; top: 16px; right: 16px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
-  .toast { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; min-width: 220px; max-width: 360px; box-shadow: 0 4px 12px rgba(0,0,0,.08); animation: toast-in .15s ease-out; }
-  .toast.error { border-left-color: var(--bad); }
-  .toast.success { border-left-color: var(--ok); }
-  @keyframes toast-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
-  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: var(--accent); } .toast { animation: none; } }
-  
-  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; border-bottom: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
-  .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
-  .topbar .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
-  .topbar nav { display: flex; gap: 4px; }
-  .topbar nav button { background: transparent; border-color: transparent; color: var(--text-dim); padding: 7px 14px; font-size: 13px; }
-  .topbar nav button.active { background: var(--panel-raised); color: var(--text); border-color: var(--border); }
-  .topbar .right { display: flex; align-items: center; gap: 10px; }
-  .content { flex: 1; max-width: 1080px; width: 100%; margin: 0 auto; padding: 28px 24px 60px; }
-  .page-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
-  .page-head h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
-  .page-head .sub { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
-  .page-head .actions { display: flex; gap: 8px; }
-  
-  .login-screen { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 28px; }
-  .login-card { width: 320px; }
-  .login-card .brand-mark { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 22px; }
-  .login-card .brand-mark .glyph { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-bg); border: 1px solid rgba(37,99,235,.3); display: flex; align-items: center; justify-content: center; color: var(--accent); font-weight: 800; font-size: 16px; }
-  .login-card .brand-mark .title { font-weight: 700; font-size: 15px; }
-  .login-card .brand-mark .desc { color: var(--text-faint); font-size: 12px; text-align: center; }
-  .login-card form { display: flex; flex-direction: column; gap: 14px; }
-  .login-card .error-msg { color: var(--bad); font-size: 12.5px; }
-  
-  /* 设置下拉菜单 */
-  .settings-dropdown { position: relative; }
-  .settings-dropdown .menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 10px 25px rgba(0,0,0,.12); padding: 6px; z-index: 400; display: none; }
-  .settings-dropdown .menu.open { display: block; }
-  .settings-dropdown .menu button { display: block; width: 100%; text-align: left; background: transparent; border: none; padding: 9px 10px; font-size: 13px; color: var(--text); border-radius: 8px; cursor: pointer; }
-  .settings-dropdown .menu button:hover { background: var(--panel-raised); }
-  .settings-dropdown .menu button.danger { color: var(--bad); }
-  .settings-dropdown .menu .sep { height: 1px; background: var(--border); margin: 6px 2px; }
-  .settings-dropdown .menu .menu-label { padding: 6px 10px 2px; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .03em; }
-  
-  /* 初始化 / 部署向导页 */
-  .setup-card { width: 420px; }
-  .setup-card.wide { width: 480px; }
-  .setup-card .hint { color: var(--text-faint); font-size: 12px; margin-top: -4px; margin-bottom: 6px; }
-  .setup-card .token-box { background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: monospace; font-size: 13px; word-break: break-all; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .setup-card .token-box code { flex: 1; word-break: break-all; }
-  .setup-card .step-banner { background: var(--accent-bg); border: 1px solid rgba(37,99,235,.25); color: var(--accent-dim); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 16px; }
-  
-  .empty-state { text-align: center; padding: 56px 20px; color: var(--text-faint); border: 1px dashed var(--border); border-radius: var(--radius-lg); }
-  .empty-state .glyph { font-size: 26px; margin-bottom: 10px; opacity: .6; }
-  .empty-state .msg { font-size: 13.5px; color: var(--text-dim); }
-  .empty-state .sub { font-size: 12.5px; margin-top: 4px; }
-  
-  .template-grid { display: flex; flex-direction: column; gap: 10px; }
-  .template-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: border-color .12s, background .12s; }
-  .template-row:hover { border-color: #cbd5e1; background: var(--panel-raised); }
-  .template-row .main { flex: 1; min-width: 0; }
-  .template-row .name { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
-  .template-row .meta { font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .template-row .tags { display: flex; gap: 6px; flex-shrink: 0; }
-  .template-row .chevron { color: var(--text-faint); flex-shrink: 0; }
-  
-  .timeline { display: flex; align-items: center; gap: 0; }
-  .timeline .seg { display: flex; align-items: center; }
-  .timeline .step { width: 9px; height: 9px; border-radius: 50%; background: var(--border); border: 1px solid var(--border); flex-shrink: 0; position: relative; }
-  .timeline .step.done { background: var(--ok); border-color: var(--ok); }
-  .timeline .step.current { background: var(--run); border-color: var(--run); box-shadow: 0 0 0 3px var(--run-bg); }
-  .timeline .step.failed { background: var(--bad); border-color: var(--bad); }
-  .timeline .step.skip { background: transparent; border: 1px dashed var(--border-soft); }
-  .timeline .bar { width: 20px; height: 1px; background: var(--border); flex-shrink: 0; }
-  .timeline .bar.done { background: var(--ok); }
-  .timeline-labels { display: flex; gap: 0; font-size: 10px; color: var(--text-faint); margin-top: 6px; font-family: var(--font-mono); }
-  .timeline-labels span { width: 29px; text-align: center; flex-shrink: 0; }
-  .timeline-labels span:first-child { width: 9px; margin-right: 10px; }
-  
-  .build-row { padding: 14px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 10px; }
-  .build-row .top-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-  .build-row .left-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  .build-row .tpl-name { font-weight: 600; font-size: 13.5px; }
-  .build-row .time { font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); }
-  .build-row .links { display: flex; gap: 14px; font-size: 12.5px; margin-top: 8px; }
-  
-  .detail-back { margin-bottom: 14px; }
-  .section { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 18px; }
-  .section > h2 { font-size: 13px; font-weight: 700; margin: 0 0 16px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; justify-content: space-between; }
-  .section > h2 .actions { display: flex; gap: 8px; text-transform: none; letter-spacing: 0; }
-  
-  .version-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .version-table th { text-align: left; font-size: 11.5px; color: var(--text-faint); font-weight: 600; padding: 0 10px 8px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); }
-  .version-table td { padding: 10px 10px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
-  .version-table tr:last-child td { border-bottom: none; }
-  .version-table .label-cell { display: flex; align-items: center; gap: 6px; }
-  .version-table .label-text { color: var(--text-dim); }
-  .version-table .label-edit-btn { opacity: 0; transition: opacity .12s; }
-  .version-table tr:hover .label-edit-btn { opacity: 1; }
-  .version-table .ref-tag { font-size: 10.5px; padding: 1px 7px; border-radius: 100px; font-weight: 600; background: var(--accent-bg); color: var(--accent); margin-left: 6px; }
-  .version-table .ref-tag.sched { background: var(--warn-bg); color: var(--warn); }
-  .version-table .ops { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-  .version-table .source-tag { font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); }
-  
-  .schedule-form { display: flex; flex-direction: column; gap: 14px; }
-  .schedule-toggle-row { display: flex; align-items: center; gap: 10px; }
-  .switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
-  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-  .switch .track { position: absolute; inset: 0; background: var(--border); border-radius: 100px; transition: background .15s; cursor: pointer; }
-  .switch .track::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: var(--text-dim); border-radius: 50%; transition: transform .15s, background .15s; }
-  .switch input:checked + .track { background: var(--accent-bg); border: 1px solid var(--accent); }
-  .switch input:checked + .track::before { transform: translateX(16px); background: var(--accent); }
-  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
-  
-  .cron-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .cron-presets button { font-size: 12px; padding: 4px 10px; }
-  
-  .warn-line { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--warn); background: var(--warn-bg); border: 1px solid rgba(217,119,6,.3); border-radius: var(--radius); padding: 9px 12px; }
-  
-  .plugin-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
-  .plugin-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--bg); }
-  .plugin-item .row1 { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
-  .plugin-item .row1 input[type=text] { flex: 1; }
-  .plugin-item .sparse-row { display: flex; gap: 10px; align-items: center; }
-  .plugin-item .sparse-row label.inline { display: flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; }
-  .plugin-item .sparse-row input[type=checkbox] { width: auto; }
-  .plugin-item .sub-fields { display: flex; gap: 10px; margin-top: 8px; }
-  .plugin-item .remove-btn { flex-shrink: 0; }
-  
-  .trigger-panel { display: flex; flex-direction: column; gap: 16px; }
-  .radio-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
-  .radio-option.selected { border-color: var(--accent); background: var(--accent-bg); }
-  .radio-option input[type=radio] { margin-top: 2px; width: auto; }
-  .radio-option .opt-body { flex: 1; }
-  .radio-option .opt-title { font-size: 13px; font-weight: 500; }
-  .radio-option select { margin-top: 8px; }
-  
-  .code-view { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; max-height: 420px; overflow: auto; white-space: pre-wrap; word-break: break-all; color: var(--text-dim); }
-  
-  .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
-  .modal-box { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 640px; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,.1); }
-  .modal-box .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .modal-box .modal-head h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
-  .modal-box .modal-body { padding: 20px; overflow: auto; flex: 1; }
-  .modal-box .modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
-  
-  .terminal-frame-wrap { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: #000; }
-  .terminal-frame-wrap iframe { width: 100%; height: 520px; border: none; display: block; }
-  .terminal-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--panel-raised); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-dim); }
-  
-  @media (max-width: 720px) {
-    .content { padding: 18px 14px 50px; }
-    .field-row { flex-direction: column; }
-    .topbar { padding: 0 14px; }
-    .topbar .brand span.label { display: none; }
-  }
-  .st-bar { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.6fr; gap: 12px; margin: 14px 0 18px; }
-  .st-bar label { display: block; font-size: 13px; color: var(--text-dim); }
-  .st-bar select, .st-bar input { width: 100%; margin-top: 4px; }
-  .st-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; padding-bottom: 70px; }
-  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; background: var(--panel-raised); border: 1px solid var(--border); border-radius: 999px; font-size: 12.5px; }
-  .chip small { color: var(--text-dim); }
-  .chip button { border: 0; background: none; color: var(--text-dim); padding: 0 6px; cursor: pointer; }
-  .st-tools { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; }
-  .st-tools input { flex: 1; min-width: 0; }
-  .st-tools button { white-space: nowrap; }
-  .st-chips, .st-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; font-size: 13px; color: var(--text-dim); }
-  .st-chips button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .st-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg, 12px); padding: 14px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
-  .st-card:hover { border-color: var(--accent); }
-  .st-top { display: flex; gap: 10px; align-items: center; }
-  .st-tile { flex: none; width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; }
-  .st-card h3 { margin: 0; font-size: 14px; }
-  .st-card code { font-size: 11.5px; color: var(--text-dim); }
-  .st-card p { margin: 0; font-size: 13px; color: var(--text-dim); min-height: 2.8em; }
-  .st-foot { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: auto; }
-  .st-foot button { margin-left: auto; }
-  .st-foot button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .st-basket { position: sticky; top: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .st-basket h2 { margin: 0; font-size: 15px; }
-  .st-basket ul { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow: auto; }
-  .st-basket li { display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-  .st-basket li button { margin-left: auto; border: 0; background: none; color: var(--text-dim); }
-  .st-sum { display: flex; gap: 18px; font-size: 13px; color: var(--text-dim); }
-  .st-sum b { color: var(--text); font-size: 16px; margin-right: 3px; }
-  .st-warn { background: var(--panel-raised); border-left: 3px solid #d98a00; padding: 7px 10px; font-size: 12.5px; border-radius: 6px; }
-  .st-opt { display: flex; gap: 8px; font-size: 13px; align-items: flex-start; }
-  .st-opt small { display: block; color: var(--text-dim); }
-  .st-basket textarea { width: 100%; height: 100px; font: 11.5px/1.5 var(--font-mono, monospace); }
-  .st-field { position: relative; }
-  .st-dd { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; max-height: 280px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-  .st-opt-item { padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column; }
-  .st-opt-item:hover { background: var(--panel-raised); }
-  .st-opt-item small { color: var(--text-dim); }
-  .build-row .links { flex-wrap: wrap; }
-  .fail-log { white-space: pre-wrap; font-size: 12px; background: var(--panel-raised); padding: 8px; border-radius: 6px; margin: 6px 0 0; max-height: 160px; overflow: auto; }
-  @media (max-width: 900px) { .st-bar, .st-layout { grid-template-columns: 1fr; } .st-basket { position: static; } }
-`;
-  
+  .brand { padding: 0; }
+  .brand-txt small { display: none; }
+  .nav { flex-direction: row; gap: 2px; margin-left: auto; }
+  .nav-label, .side-foot { display: none; }
+  .nav-item { padding: 7px 9px; font-size: 12.5px; }
+  .nav-item.active::before { display: none; }
+  .nav-item span.t { display: none; }
+  .main-inner { padding: 18px 14px 60px; }
+  .page-head h1 { font-size: 20px; }
+  .store-top { grid-template-columns: 1fr; }
+  .plugins { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   生产版补充样式（登录、表格、设置、细节）
+   ============================================================ */
+
+.hint { font-size: 11.5px; color: var(--ink-3); line-height: 1.6; }
+.dim { color: var(--ink-3); }
+.mono { font-family: var(--mono); }
+
+/* 载入 */
+.loading { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 46px 0; color: var(--ink-3); font-size: 13px; }
+.loading svg { width: 16px; height: 16px; animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; margin-right: 6px; vertical-align: -2px; }
+
+/* ---------------- 登录 / 初始化 ---------------- */
+.auth {
+  min-height: 100vh; display: grid; place-items: center; padding: 26px;
+  background:
+    radial-gradient(900px 500px at 15% 10%, var(--brand-soft), transparent 60%),
+    radial-gradient(700px 420px at 90% 90%, rgba(167, 139, 250, .14), transparent 60%),
+    var(--bg);
+}
+.auth-card {
+  width: min(880px, 100%); display: grid; grid-template-columns: 380px minmax(0, 1fr);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl);
+  box-shadow: var(--sh-3); overflow: hidden;
+}
+.auth-art {
+  position: relative; overflow: hidden; padding: 34px 32px;
+  background: linear-gradient(155deg, #3b5bdb 0%, #5568e8 55%, #7d6cf0 100%);
+  color: #fff; display: flex; flex-direction: column;
+}
+.auth-art::after {
+  content: ""; position: absolute; right: -70px; bottom: -90px; width: 260px; height: 260px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .22), transparent 62%);
+}
+.auth-logo {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: rgba(255, 255, 255, .18); border: 1px solid rgba(255, 255, 255, .28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+.auth-logo svg { width: 22px; height: 22px; }
+.auth-art-t { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 20px; }
+.auth-art-s { font-family: var(--mono); font-size: 11px; opacity: .78; margin-top: 4px; letter-spacing: .02em; }
+.auth-points { list-style: none; margin: 26px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
+.auth-points li { display: flex; gap: 9px; font-size: 12.5px; line-height: 1.5; opacity: .92; }
+.auth-points svg { width: 14px; height: 14px; flex: 0 0 14px; margin-top: 2px; opacity: .9; }
+.auth-form { padding: 36px 34px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.auth-form h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.025em; }
+.auth-sub { margin: -4px 0 8px; font-size: 12.5px; color: var(--ink-3); line-height: 1.6; }
+.auth-form form { display: flex; flex-direction: column; gap: 13px; }
+.auth-err {
+  font-size: 12px; color: var(--bad); background: var(--bad-soft);
+  border-radius: 8px; padding: 8px 10px; line-height: 1.5;
+}
+.auth-foot { font-size: 11.5px; color: var(--ink-3); text-align: center; line-height: 1.6; }
+.auth-done { display: flex; flex-direction: column; gap: 12px; }
+.auth-done h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.auth-ok {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ok-soft); color: var(--ok);
+}
+.auth-ok svg { width: 20px; height: 20px; stroke-width: 2.6; }
+.token-box {
+  display: flex; gap: 8px; align-items: center; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.token-box code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; color: var(--ink); }
+
+/* ---------------- 商店补充 ---------------- */
+.st-hint { margin: -6px 0 14px; }
+.plugin { position: relative; }
+.plugin .corner-tag {
+  position: absolute; top: 10px; right: 30px; font-size: 9.5px; letter-spacing: .04em;
+  padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color: var(--ink-3);
+  font-family: var(--mono); text-transform: uppercase;
+}
+.plugin .corner-tag.warn { background: var(--warn-soft); color: var(--warn); }
+.note.ok { background: var(--ok-soft); color: var(--ok); }
+.note.info { background: var(--brand-soft); color: var(--brand-2); }
+body[data-theme="dark"] .note.info { color: var(--brand); }
+.basket .field > label { font-size: 11.5px; }
+
+.cand-box {
+  max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 10px; display: flex; flex-direction: column;
+}
+.cand { display: flex; gap: 8px; padding: 4px 0; font-size: 12.5px; align-items: flex-start; line-height: 1.45; }
+.cand input { width: auto; margin-top: 3px; }
+
+.src-list { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.src-row {
+  display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--ink-2);
+  padding: 6px 0; border-bottom: 1px dashed var(--line);
+}
+.src-row:last-child { border-bottom: 0; }
+.src-row svg { width: 12px; height: 12px; color: var(--ink-3); flex: 0 0 12px; }
+.src-row code { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+.src-row > span { color: var(--ink-3); word-break: break-all; flex: 1; min-width: 0; }
+
+/* ---------------- 详情 ---------------- */
+.hero { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.hero-main { min-width: 0; flex: 1 1 320px; position: relative; z-index: 1; }
+.hero-actions { display: flex; gap: 8px; flex-wrap: wrap; position: relative; z-index: 1; }
+.hero .kv { width: 100%; flex: 0 0 100%; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.side-col { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; }
+
+.opt-row { align-items: center; }
+.opt-row .c .switch { margin: 0; }
+.sched-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sched-label { font-size: 13px; font-weight: 600; margin-right: 2px; }
+.cron-presets { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 10px; }
+.cron-presets .cat:hover { border-color: var(--brand); color: var(--brand-2); }
+
+.next-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 12px; border-bottom: 1px dashed var(--line); }
+.next-row:last-of-type { border-bottom: 0; }
+.next-row .k { color: var(--ink-3); flex: 0 0 auto; }
+.next-row .v { font-weight: 550; text-align: right; }
+.next-note { display: flex; gap: 7px; margin-top: 10px; font-size: 11.5px; color: var(--ink-3); line-height: 1.5; }
+.next-note svg { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 1px; }
+
+.fold > summary { cursor: pointer; list-style: none; font-size: 12px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary svg { width: 12px; height: 12px; transition: transform .15s; }
+.fold[open] > summary svg { transform: rotate(90deg); }
+.fold pre { margin: 8px 0 0; }
+
+/* ---------------- 版本表 ---------------- */
+.vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.vtable th {
+  text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line);
+  background: var(--surface-2); white-space: nowrap;
+}
+.vtable td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.vtable tr:last-child td { border-bottom: 0; }
+.vtable tbody tr:hover td { background: var(--surface-2); }
+.ref-tag { display: inline-flex; padding: 1px 6px; border-radius: 5px; font-size: 10.5px; background: var(--surface-3); color: var(--ink-2); margin-right: 4px; white-space: nowrap; }
+.ref-tag.sched { background: var(--brand-soft); color: var(--brand-2); }
+body[data-theme="dark"] .ref-tag.sched { color: var(--brand); }
+.label-cell { display: flex; align-items: center; gap: 6px; }
+.label-cell .label-text { color: var(--ink-2); }
+.icon-btn { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px; border-radius: 4px; display: grid; place-items: center; }
+.icon-btn:hover { color: var(--brand); background: var(--brand-soft); }
+.icon-btn svg { width: 12px; height: 12px; }
+.row-ops { display: flex; gap: 9px; justify-content: flex-end; flex-wrap: wrap; }
+
+.lnk {
+  background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; font-family: inherit;
+  color: var(--ink-2); display: inline-flex; align-items: center; gap: 4px; text-decoration: none;
+}
+.lnk:hover { color: var(--brand); text-decoration: underline; }
+.lnk svg { width: 12px; height: 12px; }
+.lnk.danger { color: var(--bad); }
+.lnk[disabled] { opacity: .4; cursor: not-allowed; text-decoration: none; }
+.build-links { align-items: center; gap: 14px; }
+
+/* ---------------- 记录页 ---------------- */
+.seg button .n { font-family: var(--mono); font-size: 10px; opacity: .55; margin-left: 2px; }
+.seg button.on .n { opacity: .8; }
+.progress .bar i.indet { width: 100% !important; opacity: .9; }
+.build-meta .tag-inline { display: inline-flex; align-items: center; gap: 3px; }
+.build-meta .tag-inline svg { width: 11px; height: 11px; opacity: .65; }
+
+/* ---------------- 设置 ---------------- */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.dl { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12px; }
+.dl:last-of-type { border-bottom: 0; }
+.dl .k { color: var(--ink-3); flex: 0 0 88px; }
+.dl .v { color: var(--ink); word-break: break-all; font-weight: 500; }
+.danger-card { border-color: rgba(201, 42, 62, .22); }
+.danger-card .card-head h2 { color: var(--bad); }
+
+@media (max-width: 900px) {
+  .settings-grid { grid-template-columns: 1fr; }
+  .auth-card { grid-template-columns: 1fr; }
+  .auth-art { padding: 24px 24px 22px; }
+  .auth-points { display: none; }
+  .auth-form { padding: 26px 22px 30px; }
+  .side-col { position: static; }
+}
+@media (max-width: 860px) {
+  .hero { flex-direction: column; }
+  .hero-actions { width: 100%; }
+  .hero-actions .btn { flex: 1; justify-content: center; }
+  .opt-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .opt-row .c { width: 100%; }
+  .opt-row .c .select { width: 100%; }
+  .row-ops { justify-content: flex-start; }
+  .auth { padding: 14px; }
+  .auth-art { display: none; }
+  .auth-card { grid-template-columns: 1fr; }
+}
+
+/* 卡片细节 */
+.tpl-foot { flex-wrap: wrap; row-gap: 8px; }
+.tpl-dev { overflow-wrap: anywhere; }
+.tpl-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* 表格不出卡片 */
+.stack > .card, .settings-grid > .card { min-width: 0; }
+.card > div[style*="overflow-x"] { border-radius: 0 0 var(--r-lg) var(--r-lg); }
+.vtable { min-width: 560px; }
+.vtable td .row-ops { gap: 7px; }
+.vtable .label-cell .label-text { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+
+/* 移动端保留主题/退出按钮 */
+@media (max-width: 860px) {
+  .side-foot { display: flex; flex-direction: row; margin: 0 0 0 6px; }
+  .side-foot .queue { display: none; }
+  .side-actions { gap: 4px; }
+  .side-actions .btn { padding: 6px 8px; }
+  .side-actions .btn span { display: none; }
+  .nav { margin-left: auto; }
+}
+  `;
+
   const APP_JS = `
-  const api = {
-    async _req(method, path, body) {
-      const opt = { method, headers: {}, credentials: 'same-origin' };
-      if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-      const resp = await fetch(path, opt);
-      let data = null;
-      try { data = await resp.json(); } catch {}
-      if (!resp.ok) {
-        const msg = (data && data.error) || \`请求失败 (\${resp.status})\`;
-        const e = new Error(msg); e.status = resp.status; throw e;
-      }
-      return data;
-    },
-    get(p) { return this._req('GET', p); },
-    post(p, b) { return this._req('POST', p, b ?? {}); },
-    put(p, b) { return this._req('PUT', p, b ?? {}); },
-    patch(p, b) { return this._req('PATCH', p, b ?? {}); },
-    del(p) { return this._req('DELETE', p); },
-    login(password) { return this.post('/api/login', { password }); },
-    logout() { return this.post('/api/logout'); },
-    setupStatus() { return this.get('/api/setup/status'); },
-    setupInit(password, confirmPassword) { return this.post('/api/setup/init', { password, confirm_password: confirmPassword }); },
-    setupWizard(body) { return this.post('/api/setup/wizard', body); },
-    getSettings() { return this.get('/api/settings'); },
-    resetReportToken() { return this.post('/api/settings/report-token/reset'); },
-    settingsReset(scope) { return this.post('/api/settings/reset', { scope }); },
-    listTemplates() { return this.get('/api/templates'); },
-    getTemplate(id) { return this.get(\`/api/templates/\${id}\`); },
-    createTemplate(body) { return this.post('/api/templates', body); },
-    updateTemplate(id, body) { return this.put(\`/api/templates/\${id}\`, body); },
-    deleteTemplate(id) { return this.del(\`/api/templates/\${id}\`); },
-    listHistory(tplId) { return this.get(\`/api/templates/\${tplId}/dotconfig/history\`); },
-    getHistoryVersion(tplId, vid) { return this.get(\`/api/templates/\${tplId}/dotconfig/history/\${vid}\`); },
-    uploadDotconfig(tplId, body) { return this.post(\`/api/templates/\${tplId}/dotconfig/upload\`, body); },
-    setCurrentDotconfig(tplId, versionId) { return this.put(\`/api/templates/\${tplId}/dotconfig/current\`, { version_id: versionId }); },
-    patchLabel(tplId, vid, label) { return this.patch(\`/api/templates/\${tplId}/dotconfig/history/\${vid}\`, { label }); },
-    deleteVersion(tplId, vid) { return this.del(\`/api/templates/\${tplId}/dotconfig/history/\${vid}\`); },
-    setSchedule(tplId, body) { return this.put(\`/api/templates/\${tplId}/schedule\`, body); },
-    importTemplate(body) { return this.post('/api/templates/import', body); },
-    trigger(body) { return this.post('/api/trigger', body); },
-    listBuilds() { return this.get('/api/builds'); },
-    getBuild(id) { return this.get(\`/api/builds/\${id}\`); },
-    listCaches() { return this.get('/api/caches'); },
-    setCachePublish(id, enabled) { return this.post(\`/api/builds/\${id}/cache-publish\`, { enabled }); },
-    cancelBuild(id) { return this.post(\`/api/builds/\${id}/cancel\`); },
-  };
-  
-  const store = { authed: false, systemStatus: 'ready', route: { name: 'templates', params: {} }, templates: [], builds: [], pollTimer: null };
-  
-  function parseHash() {
-    const h = location.hash.replace(/^#\\/?/, '');
-    const parts = h.split('/').filter(Boolean);
-    if (parts[0] === 'template' && parts[1]) return { name: 'template-detail', params: { id: parts[1] } };
-    if (parts[0] === 'trigger' && parts[1]) return { name: 'template-detail', params: { id: parts[1] } };
-    if (parts[0] === 'store' && parts[1]) return { name: 'store', params: { tpl: parts[1] } };
-    if (parts[0] === 'builds') return { name: 'builds', params: {} };
-    if (parts[0] === 'templates') return { name: 'templates', params: {} };
-    return { name: 'store', params: {} };
-  }
-  
-  function navigate(hash) { location.hash = hash; }
-  window.addEventListener('hashchange', () => { store.route = parseHash(); render(); });
-  
-  function toast(message, type = 'info') {
-    const wrap = document.getElementById('toast-wrap');
-    if (!wrap) return;
-    const el = document.createElement('div');
-    el.className = \`toast \${type}\`;
-    el.textContent = message;
-    wrap.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 250); }, 3200);
-  }
-  
-  function reportApiError(e, fallback) { toast(e?.message || fallback || '操作失败', 'error'); }
-  
-  function escapeHtml(s) {
-    if (s === null || s === undefined) return '';
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-  
-  function fmtTime(ts) {\n  if (!ts) return '—';\n  const d = new Date(Number(ts));\n  const pad = (n) => String(n).padStart(2, '0');\n  return \`\${d.getFullYear()}-\${pad(d.getMonth() + 1)}-\${pad(d.getDate())} \${pad(d.getHours())}:\${pad(d.getMinutes())}\`;\n}
-  
-  function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
-  function qs(root, sel) { return root.querySelector(sel); }
-  function qsa(root, sel) { return Array.from(root.querySelectorAll(sel)); }
-  
-  const SOURCE_LABELS = { manual_upload: '手动上传', menuconfig_push: 'menuconfig推送', imported: '导入' };
-  const STATUS_LABELS = { queued: '排队等待', pending: '排队中', running: '准备中', menuconfig: '配置中', compiling: '编译中', success: '成功', failed: '失败', cancelled: '已取消' };
-  const ACTIVE_BUILD_STATUSES = ['queued', 'pending', 'running', 'menuconfig', 'compiling'];
-  
-  // 取消编译：列表页和触发页的实时进度卡片共用这一个处理函数
-  async function cancelBuildWithConfirm(buildId, onDone) {
-    if (!confirm('确认要取消这个编译任务吗？已经跑起来的 GitHub Actions 任务会一并取消。')) return;
-    try {
-      const res = await api.cancelBuild(buildId);
-      if (res.github_cancel_warning) {
-        // 这条提示文字较长，用 alert 而不是会自动消失的 toast，确保用户能看完
-        alert(\`已在本系统标记为取消，但：\n\n\${res.github_cancel_warning}\`);
-      } else {
-        toast('已取消', 'success');
-      }
-      if (onDone) await onDone();
-    } catch (e) {
-      reportApiError(e, '取消失败');
+/* ============================================================
+   固件工坊 owrt-forge · 前端
+   纯原生 JS，无构建依赖；由 tools 注入 Worker 的 APP_JS
+   ============================================================ */
+
+/* ---------------- 图标 ---------------- */
+const P = {
+  layers: '<path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z"/><path d="m3 12.5 9 4.5 9-4.5"/><path d="m3 17 9 4.5 9-4.5"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+  pulse: '<path d="M3 12h3.5l2.5-7 4 14 2.5-7H21"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h5M13 17h7"/><circle cx="15" cy="7" r="2"/><circle cx="11" cy="17" r="2"/>',
+  check: '<path d="m4 12.5 5 5L20 6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  right: '<path d="m9 6 6 6-6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5 15 9M9 15l-2.5 2.5"/>',
+  alert: '<path d="M12 8v5M12 16.5v.5"/><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+  play: '<path d="M7 4.5v15l13-7.5-13-7.5Z"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  download: '<path d="M12 4v11m0 0 4-4m-4 4-4-4"/><path d="M5 19h14"/>',
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 10 2.5 2L7 14M12.5 14H16"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2.5"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3H6a2.5 2.5 0 0 0-2.5 2.5V12"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>',
+  trash: '<path d="M4 7h16M10 4h4M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
+  external: '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  box: '<path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z"/><path d="m4 7 8 4 8-4M12 11v10"/>',
+  save: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7"/><path d="M8 15h8"/>',
+  branch: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 3-3 3.5-6 4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>',
+  zap: '<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z"/>',
+  shield: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path d="m9 12 2 2 4-4"/>',
+  filter: '<path d="M4 5h16l-6.5 7.5V19l-3 1.5v-8L4 5Z"/>',
+  logout: '<path d="M14 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2"/><path d="M18 12H9m9 0-3-3m3 3-3 3"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12M4 6v.01M4 12v.01M4 18v.01"/>',
+  edit: '<path d="M4 20h4l10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5 4 20Z"/>',
+  lock: '<rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+  rocket: '<path d="M5 15c-1 2-1 5-1 5s3 0 5-1"/><path d="M9 15 5 11c0-6 5-8 12-8 0 7-2 12-8 12Z"/><circle cx="14.5" cy="9.5" r="1.5"/>',
+  git: '<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="8" r="2.2"/><path d="M6 8.2v7.6M18 10.2c0 2.8-2.6 3.6-6 3.8"/>',
+};
+function ic(n, cls) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + (cls ? ' class="' + cls + '"' : '') + '>' + (P[n] || '') + '</svg>';
+}
+
+/* ---------------- API ---------------- */
+const api = {
+  async _req(method, path, body) {
+    const opt = { method, headers: {}, credentials: 'same-origin' };
+    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const resp = await fetch(path, opt);
+    let data = null;
+    try { data = await resp.json(); } catch (e) { /* 空响应 */ }
+    if (!resp.ok) {
+      const msg = (data && data.error) || ('请求失败 (' + resp.status + ')');
+      const e = new Error(msg); e.status = resp.status; throw e;
     }
-  }
-  
-  function statusBadgeClass(status) {
-    if (status === 'success') return 'ok';
-    if (status === 'failed' || status === 'cancelled') return 'bad';
-    if (status === 'menuconfig') return 'warn';
-    if (status === 'pending') return 'dim';
-    return 'run';
-  }
-  
-  function renderTimeline(build) {
-    const isManual = build.trigger_type !== 'scheduled';
-    const steps = isManual ? ['pending', 'running', 'menuconfig', 'compiling', 'done'] : ['pending', 'running', 'compiling', 'done'];
-    const order = isManual ? ['pending', 'running', 'menuconfig', 'compiling', 'success'] : ['pending', 'running', 'compiling', 'success'];
-    const failed = build.status === 'failed' || build.status === 'cancelled';
-    const curIdx = failed ? order.length - 1 : order.indexOf(build.status);
-    let html = '<div class="timeline">';
-    steps.forEach((stepKey, i) => {
-      const isDoneStep = stepKey === 'done';
-      const stepOrderIdx = isDoneStep ? order.length - 1 : i;
-      let cls = '';
-      if (isDoneStep) { if (build.status === 'success') cls = 'done'; else if (failed) cls = 'failed'; else cls = ''; }
-      else if (stepOrderIdx < curIdx) cls = 'done';
-      else if (stepOrderIdx === curIdx && !failed) cls = 'current';
-      else if (failed && stepOrderIdx === curIdx) cls = 'failed';
-      html += \`<span class="step \${cls}" title="\${escapeHtml(isDoneStep ? (build.status === 'success' ? '成功' : (failed ? STATUS_LABELS[build.status] : '完成')) : STATUS_LABELS[stepKey])}"></span>\`;
-      if (i < steps.length - 1) { const barDone = stepOrderIdx < curIdx; html += \`<span class="bar \${barDone ? 'done' : ''}"></span>\`; }
+    return data;
+  },
+  get(p) { return this._req('GET', p); },
+  post(p, b) { return this._req('POST', p, b === undefined ? {} : b); },
+  put(p, b) { return this._req('PUT', p, b === undefined ? {} : b); },
+  patch(p, b) { return this._req('PATCH', p, b); },
+  del(p) { return this._req('DELETE', p); },
+  login(pw) { return this.post('/api/login', { password: pw }); },
+  logout() { return this.post('/api/logout'); },
+  setupStatus() { return this.get('/api/setup/status'); },
+  setupInit(pw, pw2) { return this.post('/api/setup/init', { password: pw, confirm_password: pw2 }); },
+  setupWizard(body) { return this.post('/api/setup/wizard', body); },
+  settings() { return this.get('/api/settings'); },
+  resetToken() { return this.post('/api/settings/report-token/reset'); },
+  resetSettings(scope) { return this.post('/api/settings/reset', { scope }); },
+  templates() { return this.get('/api/templates'); },
+  template(id) { return this.get('/api/templates/' + id); },
+  createTemplate(b) { return this.post('/api/templates', b); },
+  updateTemplate(id, b) { return this.put('/api/templates/' + id, b); },
+  deleteTemplate(id) { return this.del('/api/templates/' + id); },
+  history(id) { return this.get('/api/templates/' + id + '/dotconfig/history'); },
+  historyVersion(id, vid) { return this.get('/api/templates/' + id + '/dotconfig/history/' + vid); },
+  importTemplate(b) { return this.post('/api/templates/import', b); },
+  uploadDotconfig(id, b) { return this.post('/api/templates/' + id + '/dotconfig/upload', b); },
+  setCurrentDotconfig(id, vid) { return this.put('/api/templates/' + id + '/dotconfig/current', { version_id: vid }); },
+  patchLabel(id, vid, label) { return this.patch('/api/templates/' + id + '/dotconfig/history/' + vid, { label: label }); },
+  deleteVersion(id, vid) { return this.del('/api/templates/' + id + '/dotconfig/history/' + vid); },
+  setSchedule(id, b) { return this.put('/api/templates/' + id + '/schedule', b); },
+  builds() { return this.get('/api/builds'); },
+  build(id) { return this.get('/api/builds/' + id); },
+  caches() { return this.get('/api/caches'); },
+  trigger(id) { return this.post('/api/trigger', { template_id: id }); },
+  cancel(id) { return this.post('/api/builds/' + id + '/cancel'); },
+  setCachePublish(id, enabled) { return this.post('/api/builds/' + id + '/cache-publish', { enabled: enabled }); },
+  catalog(force) { return this.get('/api/catalog' + (force ? '?refresh=1' : '')); },
+  projects() { return this.get('/api/projects'); },
+  addProject(b) { return this.post('/api/projects', b); },
+  delProject(id) { return this.del('/api/projects/' + id); },
+  platforms(pid, force) { return this.get('/api/platforms?project=' + encodeURIComponent(pid) + (force ? '&refresh=1' : '')); },
+  platform(pid, target, force) { return this.get('/api/platform?project=' + encodeURIComponent(pid) + '&target=' + encodeURIComponent(target) + (force ? '&refresh=1' : '')); },
+  customPlugins() { return this.get('/api/custom-plugins'); },
+  detectPlugin(b) { return this.post('/api/custom-plugins/detect', b); },
+  addCustomPlugin(b) { return this.post('/api/custom-plugins', b); },
+  delCustomPlugin(id) { return this.del('/api/custom-plugins/' + encodeURIComponent(id)); },
+};
+
+/* ---------------- 状态 ---------------- */
+const S = {
+  authed: false,
+  status: 'ready',
+  route: { name: 'templates', params: {} },
+  theme: 'light',
+  templates: [],
+  builds: [],
+  catalog: [],
+  cats: ['全部'],
+  kw: {},
+  meta: '',
+  loaded: false,
+  projects: [],
+  pi: 0,
+  target: 'x86',
+  sub: '64',
+  profile: 'generic',
+  plat: { status: 'none', list: [], err: '', fetched: '' },
+  cur: { id: '', subs: [], status: 'none', err: '', fetched: '' },
+  sel: new Set(['luci-app-store']),
+  cat: '全部',
+  q: '',
+  only: false,
+  limit: 48,
+  devQ: '',
+  editId: null,
+  tplName: '',
+  nameDirty: false,
+  stale: [],
+  busy: false,
+  seq: 0,
+  bfilter: 'all',
+  poll: null,
+  tick: 0,
+};
+
+const SOURCE_LABELS = { manual_upload: '手动上传', menuconfig_push: 'menuconfig 推送', imported: '导入' };
+const ST = {
+  queued: { cls: 'warn', t: '排队等待' },
+  pending: { cls: 'warn', t: '排队中' },
+  running: { cls: 'run', t: '准备中' },
+  menuconfig: { cls: 'run', t: '配置中' },
+  compiling: { cls: 'run', t: '编译中' },
+  success: { cls: 'ok', t: '成功' },
+  failed: { cls: 'bad', t: '失败' },
+  cancelled: { cls: 'plain', t: '已取消' },
+  never: { cls: 'plain', t: '未编译' },
+};
+const ACTIVE = ['queued', 'pending', 'running', 'menuconfig', 'compiling'];
+const CRON_PRESETS = [
+  { label: '每天 02:00 UTC', cron: '0 2 * * *' },
+  { label: '每天 12:00 UTC', cron: '0 12 * * *' },
+  { label: '每周六 14:00 UTC', cron: '0 14 * * 6' },
+];
+const PRESETS = {
+  '旁路由': ['luci-app-store', 'luci-app-passwall', 'luci-app-smartdns', 'luci-app-ttyd'],
+  '家庭全能': ['luci-app-store', 'luci-app-openclash', 'luci-app-adblock-fast', 'luci-app-samba4', 'luci-app-qbittorrent', 'luci-app-ddns-go', 'luci-app-upnp', 'luci-theme-argon'],
+  '极简': ['luci-app-store', 'luci-theme-argon', 'luci-app-ttyd'],
+};
+const CAT_COLORS = {
+  '代理': ['#3b5bdb', '#eef1ff', '#93a7ff'],
+  'DNS 与广告': ['#0b7285', '#e6f6fa', '#5fd0e3'],
+  '网络': ['#1861b8', '#e8f1fd', '#74b3f7'],
+  'VPN 与穿透': ['#5f3dc4', '#f0ecfe', '#b3a0ff'],
+  '服务': ['#495468', '#eef0f6', '#a9b4c8'],
+  '存储': ['#a8620a', '#fdf2e2', '#e8b871'],
+  '下载': ['#c2410c', '#fdefe7', '#f79c72'],
+  '容器': ['#1c5bd6', '#e7f1fe', '#79a8ff'],
+  '监控': ['#0f8a5f', '#e6f7ef', '#54d3a3'],
+  '多媒体': ['#a61e6b', '#fdecf4', '#f28cc4'],
+  '系统': ['#0b6e68', '#e6f5f4', '#5cd0c8'],
+  '协议': ['#556b2f', '#f0f5e7', '#a9c37a'],
+  '主题': ['#a61232', '#fdebed', '#f58fa0'],
+  '自定义': ['#6b4fbb', '#f2eefc', '#b9a6f2'],
+};
+
+/* ---------------- 工具 ---------------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
+const esc = (s) => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isDark = () => S.theme === 'dark';
+const pad2 = (n) => String(n).padStart(2, '0');
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(Number(ts));
+  if (isNaN(d.getTime())) return '—';
+  return pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function fmtRel(ts) {
+  if (!ts) return '—';
+  const m = Math.floor((Date.now() - Number(ts)) / 60000);
+  if (m < 1) return '刚刚';
+  if (m < 60) return m + ' 分钟前';
+  if (m < 1440) return Math.floor(m / 60) + ' 小时前';
+  return fmtTime(ts);
+}
+function fmtDur(a, b) {
+  if (!a || !b) return '—';
+  const s = Math.max(0, Math.round((Number(b) - Number(a)) / 1000));
+  if (s < 60) return s + ' 秒';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' 分 ' + pad2(s % 60) + ' 秒';
+  return Math.floor(m / 60) + ' 时 ' + (m % 60) + ' 分';
+}
+function fmtSize(n) {
+  n = Number(n) || 0;
+  if (!n) return '—';
+  return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1048576)) + ' MB';
+}
+function catTriple(cat) { return CAT_COLORS[cat] || ['#4b5468', '#eef0f6', '#a9b4c8']; }
+function catStyle(cat) {
+  const c = catTriple(cat);
+  return 'background:' + (isDark() ? c[2] + '26' : c[1]) + ';color:' + (isDark() ? c[2] : c[0]);
+}
+function catFg(cat) { return isDark() ? catTriple(cat)[2] : catTriple(cat)[0]; }
+function pluginById(id) { for (let i = 0; i < S.catalog.length; i++) if (S.catalog[i].id === id) return S.catalog[i]; return null; }
+function tplById(id) { for (let i = 0; i < S.templates.length; i++) if (S.templates[i].id === id) return S.templates[i]; return null; }
+function activeBuilds() { return S.builds.filter((b) => ACTIVE.indexOf(b.status) >= 0); }
+function lastBuildOf(tplId) { for (let i = 0; i < S.builds.length; i++) if (S.builds[i].template_id === tplId) return S.builds[i]; return null; }
+function nav(hash) { if (location.hash === hash) { S.route = parseHash(); render(); } else location.hash = hash; }
+
+function toast(title, sub, kind) {
+  const wrap = $('#toasts');
+  if (!wrap) return;
+  const g = kind === 'err' ? 'alert' : kind === 'info' ? 'info' : 'check';
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind === 'err' ? 'err' : kind === 'info' ? 'info' : '');
+  el.innerHTML = '<span class="g">' + ic(g) + '</span><div><b>' + esc(title) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>';
+  wrap.appendChild(el);
+  setTimeout(function () {
+    el.style.transition = 'opacity .2s, transform .2s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(6px)';
+    setTimeout(function () { el.remove(); }, 220);
+  }, 3600);
+}
+function fail(e, fallback) { toast((e && e.message) || fallback || '操作失败', '', 'err'); }
+
+/* ---------------- 弹窗 ---------------- */
+function openModal(html, opt) {
+  opt = opt || {};
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('mousedown', function (ev) { if (ev.target === overlay) closeModal(overlay); });
+  const onKey = function (ev) { if (ev.key === 'Escape') closeModal(overlay); };
+  document.addEventListener('keydown', onKey);
+  overlay._key = onKey;
+  $$('[data-close]', overlay).forEach(function (b) { b.addEventListener('click', function () { closeModal(overlay); }); });
+  if (opt.onMount) opt.onMount(overlay);
+  return overlay;
+}
+function closeModal(overlay) {
+  if (!overlay) return;
+  document.removeEventListener('keydown', overlay._key);
+  overlay.remove();
+}
+function confirmBox(o) {
+  return new Promise(function (resolve) {
+    const overlay = openModal(
+      '<div class="modal" style="max-width:430px">' +
+        '<div class="modal-head"><h3>' + esc(o.title) + '</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+        '<div class="modal-body"><p style="margin:0;font-size:13px;line-height:1.65;color:var(--ink-2)">' + esc(o.body) + '</p>' +
+        (o.hint ? '<div class="note">' + ic('alert') + '<span>' + esc(o.hint) + '</span></div>' : '') + '</div>' +
+        '<div class="modal-foot"><button data-close>取消</button><button class="btn ' + (o.danger ? 'btn-danger' : 'btn-primary') + '" id="cf-ok">' + esc(o.ok || '确定') + '</button></div>' +
+      '</div>'
+    );
+    $('#cf-ok', overlay).addEventListener('click', function () { closeModal(overlay); resolve(true); });
+    overlay.addEventListener('mousedown', function (ev) { if (ev.target === overlay) resolve(false); });
+    $$('[data-close]', overlay).forEach(function (b) { b.addEventListener('click', function () { resolve(false); }); });
+    document.addEventListener('keydown', function k(ev) {
+      if (!document.body.contains(overlay)) { document.removeEventListener('keydown', k); return; }
+      if (ev.key === 'Escape') { resolve(false); document.removeEventListener('keydown', k); }
     });
-    html += '</div>';
-    return html;
+  });
+}
+
+/* ---------------- 路由 ---------------- */
+function parseHash() {
+  const h = location.hash.replace(/^#\\/?/, '');
+  const p = h.split('/').filter(Boolean);
+  if (!p.length) return { name: 'templates', params: {} };
+  if ((p[0] === 'template' || p[0] === 'trigger') && p[1]) return { name: 'template', params: { id: p[1] } };
+  if (p[0] === 'store') return { name: 'store', params: { tpl: p[1] || '' } };
+  if (p[0] === 'builds') return { name: 'builds', params: {} };
+  if (p[0] === 'settings') return { name: 'settings', params: {} };
+  if (p[0] === 'templates') return { name: 'templates', params: {} };
+  return { name: 'templates', params: {} };
+}
+
+/* ---------------- 主题 ---------------- */
+function applyTheme() {
+  document.body.setAttribute('data-theme', S.theme);
+}
+function toggleTheme() {
+  S.theme = isDark() ? 'light' : 'dark';
+  try { localStorage.setItem('owf-theme', S.theme); } catch (e) { /* 隐私模式 */ }
+  applyTheme();
+  document.querySelectorAll('[data-theme-label]').forEach(function (n) { n.textContent = isDark() ? '浅色' : '深色'; });
+  document.querySelectorAll('[data-theme-icon]').forEach(function (n) { n.innerHTML = ic(isDark() ? 'sun' : 'moon'); });
+  const btn = $('#themeBtn');
+  if (btn) btn.innerHTML = ic(isDark() ? 'sun' : 'moon') + '<span data-theme-label>' + (isDark() ? '浅色' : '深色') + '</span>';
+  const cur = S.route;
+  if (cur.name === 'store' && $('#st-grid')) { drawGrid(); drawBasket(); }
+}
+
+/* ---------------- 骨架 ---------------- */
+function shell(active) {
+  const act = activeBuilds().length;
+  return '<div class="app">' +
+    '<aside class="side">' +
+      '<div class="brand"><span class="brand-mark">' + ic('zap') + '</span><span class="brand-txt"><b>固件工坊</b><small>owrt-forge</small></span></div>' +
+      '<nav class="nav">' +
+        '<div class="nav-label">工作区</div>' +
+        navItem('templates', '模板', 'layers', active === 'templates' || active === 'template') +
+        navItem('store', '插件商店', 'grid', active === 'store') +
+        navItem('builds', '编译记录', 'pulse', active === 'builds', act) +
+        '<div class="nav-label">系统</div>' +
+        navItem('settings', '设置', 'sliders', active === 'settings') +
+      '</nav>' +
+      '<div class="side-foot">' +
+        '<div class="queue card" id="queueCard"></div>' +
+        '<div class="side-actions">' +
+          '<button class="btn btn-sm" id="themeBtn">' + ic(isDark() ? 'sun' : 'moon') + '<span data-theme-label>' + (isDark() ? '浅色' : '深色') + '</span></button>' +
+          '<button class="btn btn-sm btn-icon" id="logoutBtn" title="退出登录">' + ic('logout') + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</aside>' +
+    '<main class="main"><div class="main-inner" id="view"></div></main>' +
+  '</div>';
+}
+function navItem(route, label, icon, on, badge) {
+  return '<a class="nav-item' + (on ? ' active' : '') + '" data-nav="' + route + '" href="#/' + route + '">' +
+    ic(icon) + '<span class="t">' + label + '</span>' +
+    (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</a>';
+}
+function drawQueue() {
+  const box = $('#queueCard');
+  if (!box) return;
+  const list = activeBuilds();
+  const b = list[0];
+  if (b) {
+    const t = tplById(b.template_id);
+    const st = ST[b.status] || ST.pending;
+    const mins = Math.max(1, Math.floor((Date.now() - Number(b.created_at)) / 60000));
+    box.innerHTML = '<div class="queue-head"><span class="spinner-dot"></span>编译中' + (list.length > 1 ? ' · 排队 ' + (list.length - 1) : '') + '</div>' +
+      '<div class="queue-body"><div class="queue-name">' + esc(t ? t.name : '已删除的模板') + '</div>' +
+      '<div class="queue-sub">' + esc(st.t) + ' · 已用 ' + mins + ' 分</div>' +
+      '<div class="queue-bar"><i style="width:' + (b.status === 'compiling' ? 72 : b.status === 'menuconfig' ? 45 : 22) + '%"></i></div></div>';
+    box.onclick = function () { nav('#/builds'); };
+    box.hidden = false;
+    return;
   }
-  
-  function renderLogin() {
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div class="login-screen">
-      <div class="card login-card">
-        <div class="brand-mark">
-          <div class="glyph">OW</div>
-          <div class="title">OpenWrt 自动编译</div>
-          <div class="desc">通过密码登录后台，管理编译模板与触发任务</div>
-        </div>
-        <form id="login-form">
-          <div class="field">
-            <label for="pw">访问密码</label>
-            <input type="password" id="pw" name="pw" autocomplete="current-password" autofocus required />
-          </div>
-          <div class="error-msg" id="login-err" style="display:none;"></div>
-          <button type="submit" class="primary" id="login-btn">登录</button>
-        </form>
-      </div>
-    </div>\`;
-    const form = qs(app, '#login-form');
-    const errBox = qs(app, '#login-err');
-    form.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const pw = qs(app, '#pw').value;
-      const btn = qs(app, '#login-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> 登录中...';
-      errBox.style.display = 'none';
-      try {
-        await api.login(pw);
-        store.authed = true;
-        try {
-          const { status } = await api.setupStatus();
-          store.systemStatus = status;
-        } catch { store.systemStatus = 'ready'; }
-        if (store.systemStatus === 'ready') {
-          navigate('#/templates');
-          await bootAfterLogin();
-        } else {
-          render();
-        }
-      } catch (e) {
-        errBox.textContent = e.message || '登录失败';
-        errBox.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = '登录';
-      }
-    });
+  const last = S.builds[0];
+  box.hidden = false;
+  if (!last) {
+    box.innerHTML = '<div class="queue-head">空闲</div><div class="queue-body"><div class="queue-sub" style="margin:0">还没有编译记录</div></div>';
+    box.onclick = function () { nav('#/builds'); };
+    return;
   }
-  
-  // 系统初始化页：首次访问，无密码时展示
-  function renderSetupInit() {
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div class="login-screen">
-      <div class="card login-card setup-card">
-        <div class="brand-mark">
-          <div class="glyph">OW</div>
-          <div class="title">OpenWrt 编译系统 · 初始化</div>
-          <div class="desc">检测到系统尚未设置登录密码，请先完成初始化</div>
-        </div>
-        <form id="setup-init-form">
-          <div class="field">
-            <label for="setup-pw">设置登录密码</label>
-            <input type="password" id="setup-pw" minlength="6" autocomplete="new-password" autofocus required />
-          </div>
-          <div class="field">
-            <label for="setup-pw2">确认密码</label>
-            <input type="password" id="setup-pw2" minlength="6" autocomplete="new-password" required />
-          </div>
-          <div class="hint">密码至少 6 位，仅用于登录本系统的网页后台</div>
-          <div class="error-msg" id="setup-init-err" style="display:none;"></div>
-          <button type="submit" class="primary" id="setup-init-btn">初始化系统</button>
-        </form>
-      </div>
-    </div>\`;
-    const form = qs(app, '#setup-init-form');
-    const errBox = qs(app, '#setup-init-err');
-    form.addEventListener('submit', async (ev) => {
+  const st = ST[last.status] || ST.never;
+  const t = tplById(last.template_id);
+  box.innerHTML = '<div class="queue-head">上一次编译</div><div class="queue-body">' +
+    '<div class="queue-name">' + esc(t ? t.name : '已删除的模板') + '</div>' +
+    '<div class="queue-sub" style="margin:0"><span class="pill ' + st.cls + '">' + st.t + '</span> ' + fmtRel(last.created_at) + '</div></div>';
+  box.onclick = function () { nav('#/builds'); };
+}
+function mountShell(active) {
+  const app = $('#app');
+  app.innerHTML = shell(active);
+  $$('[data-nav]').forEach(function (a) {
+    a.addEventListener('click', function (ev) { ev.preventDefault(); nav(a.dataset.nav === 'store' ? '#/store' : '#/' + a.dataset.nav); });
+  });
+  $('#themeBtn').addEventListener('click', toggleTheme);
+  $('#logoutBtn').addEventListener('click', doLogout);
+  drawQueue();
+}
+async function doLogout() {
+  const ok = await confirmBox({ title: '退出登录', body: '退出后需要重新输入访问密码。', ok: '退出' });
+  if (!ok) return;
+  try { await api.logout(); } catch (e) { /* 忽略 */ }
+  S.authed = false;
+  S.status = 'ready';
+  stopPoll();
+  renderAuth('login');
+}
+
+/* ---------------- 登录 / 初始化 / 向导 ---------------- */
+function authFrame(inner) {
+  return '<div class="auth">' +
+    '<div class="auth-card">' +
+      '<div class="auth-art">' +
+        '<div class="auth-logo">' + ic('zap') + '</div>' +
+        '<div class="auth-art-t">固件工坊</div>' +
+        '<div class="auth-art-s">owrt-forge · OpenWrt 云编译控制台</div>' +
+        '<ul class="auth-points">' +
+          '<li>' + ic('check') + '<span>插件商店式选型，改配置不用碰命令行</span></li>' +
+          '<li>' + ic('check') + '<span>编译前校验机型与插件，失败原因直接说明白</span></li>' +
+          '<li>' + ic('check') + '<span>ccache 缓存与定时编译，重复的活交给机器</span></li>' +
+        '</ul>' +
+      '</div>' +
+      '<div class="auth-form">' + inner + '</div>' +
+    '</div>' +
+  '</div>';
+}
+function renderAuth(kind, opt) {
+  opt = opt || {};
+  const app = $('#app');
+  if (kind === 'init') {
+    app.innerHTML = authFrame(
+      '<h1>初始化系统</h1><p class="auth-sub">还没有设置访问密码，先设置一个再开始。</p>' +
+      '<form id="authForm"><div class="field"><label>访问密码</label><input class="input" type="password" id="pw" minlength="6" autocomplete="new-password" autofocus placeholder="至少 6 位" /></div>' +
+      '<div class="field"><label>确认密码</label><input class="input" type="password" id="pw2" minlength="6" autocomplete="new-password" placeholder="再输一次" /></div>' +
+      '<div class="auth-err" id="authErr" hidden></div>' +
+      '<button class="btn btn-primary btn-lg btn-block" id="authBtn" type="submit">创建密码并继续</button></form>' +
+      '<div class="auth-foot">密码只用于登录这个网页后台，保存在你自己的 D1 数据库里。</div>'
+    );
+    $('#authForm').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      const pw = qs(app, '#setup-pw').value;
-      const pw2 = qs(app, '#setup-pw2').value;
-      const btn = qs(app, '#setup-init-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> 初始化中...';
-      errBox.style.display = 'none';
+      const pw = $('#pw').value, pw2 = $('#pw2').value;
+      const err = $('#authErr'), btn = $('#authBtn');
+      err.hidden = true;
+      if (pw !== pw2) { err.textContent = '两次输入的密码不一致'; err.hidden = false; return; }
+      btn.disabled = true; btn.textContent = '创建中…';
       try {
         await api.setupInit(pw, pw2);
-        store.authed = true;
-        store.systemStatus = 'wizard';
-        render();
+        S.authed = true; S.status = 'wizard';
+        renderAuth('wizard');
       } catch (e) {
-        errBox.textContent = e.message || '初始化失败';
-        errBox.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = '初始化系统';
+        err.textContent = e.message || '初始化失败'; err.hidden = false;
+        btn.disabled = false; btn.textContent = '创建密码并继续';
       }
     });
+    return;
   }
-  
-  // 部署向导页：登录后若 GitHub 配置未完成，自动展示
-  function renderSetupWizard(opts) {
-    const isReconfigure = !!(opts && opts.reconfigure);
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div class="login-screen">
-      <div class="card login-card setup-card wide">
-        <div class="brand-mark">
-          <div class="glyph">OW</div>
-          <div class="title">部署向导</div>
-          <div class="desc">填写 Worker 与 GitHub 信息，完成最后一步配置</div>
-        </div>
-        <form id="wizard-form">
-          <div class="field">
-            <label for="wz-worker-url">Worker URL</label>
-            <input type="url" id="wz-worker-url" placeholder="https://xxx.workers.dev" required />
-            <div class="hint">默认填入当前网址，如有多个路由入口可自行修改</div>
-          </div>
-          <div class="field">
-            <label for="wz-repo">GitHub 仓库</label>
-            <input type="text" id="wz-repo" placeholder="owner/repo" required />
-          </div>
-          <div class="field">
-            <label for="wz-token">GitHub PAT</label>
-            <input type="password" id="wz-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off" required />
-            <div class="hint">需具备目标仓库的 repo 权限，用于触发 repository_dispatch\${isReconfigure ? '。留空表示沿用原有 Token' : ''}</div>
-          </div>
-          <div class="error-msg" id="wizard-err" style="display:none;"></div>
-          <button type="submit" class="primary" id="wizard-btn">保存并生成 REPORT_TOKEN</button>
-          \${isReconfigure ? '<button type="button" class="ghost" id="wizard-cancel-btn" style="width:100%; margin-top:8px;">取消，返回主界面</button>' : ''}
-        </form>
-        <div id="wizard-result" style="display:none; margin-top:18px;">
-          <div class="step-banner">✅ 生成成功！请前往 GitHub → Settings → Secrets → Actions，添加一条 <code>REPORT_TOKEN</code>，值见下方（退出本次设置后将不再显示明文，请立即复制）</div>
-          <div class="token-box">
-            <code id="wizard-token"></code>
-            <button type="button" class="ghost small" id="wizard-copy-btn">复制</button>
-          </div>
-          <button type="button" class="primary" id="wizard-done-btn" style="width:100%; margin-top:16px;">完成，进入主界面</button>
-        </div>
-      </div>
-    </div>\`;
-    const wEl = qs(app, '#wz-worker-url');
-    wEl.value = location.origin;
-    if (isReconfigure) {
-      api.getSettings().then((s) => {
-        if (s.worker_url) wEl.value = s.worker_url;
-        if (s.github_repo) qs(app, '#wz-repo').value = s.github_repo;
-      }).catch(() => {});
-      qs(app, '#wizard-cancel-btn')?.addEventListener('click', async () => {
-        navigate('#/templates');
-        await bootAfterLogin();
-      });
+  if (kind === 'wizard') {
+    app.innerHTML = authFrame(
+      '<h1>连接 GitHub</h1><p class="auth-sub">最后一步：告诉 Worker 用哪个仓库跑编译。</p>' +
+      '<form id="authForm">' +
+        '<div class="field"><label>Worker URL</label><input class="input mono" type="url" id="wzUrl" required /></div>' +
+        '<div class="field"><label>编译仓库</label><input class="input mono" type="text" id="wzRepo" placeholder="owner/repo" required /><div class="hint">放有 build-openwrt.yml 的那个公开仓库</div></div>' +
+        '<div class="field"><label>GitHub Token</label><input class="input mono" type="password" id="wzToken" placeholder="ghp_…" autocomplete="off" required /><div class="hint">需要目标仓库的 repo 权限，用于触发 repository_dispatch</div></div>' +
+        (opt.reconfigure ? '<div class="note">' + ic('info') + '<span>重新配置时 Token 可以留空，表示沿用已保存的那个。</span></div>' : '') +
+        '<div class="auth-err" id="authErr" hidden></div>' +
+        '<button class="btn btn-primary btn-lg btn-block" id="authBtn" type="submit">保存并生成 REPORT_TOKEN</button>' +
+        (opt.reconfigure ? '<button class="btn btn-block" type="button" id="wzCancel" style="margin-top:8px">取消，返回</button>' : '') +
+      '</form>' +
+      '<div id="wzDone" hidden></div>'
+    );
+    $('#wzUrl').value = location.origin;
+    if (opt.reconfigure) {
+      api.settings().then(function (s) {
+        if (s.worker_url) $('#wzUrl').value = s.worker_url;
+        if (s.github_repo) $('#wzRepo').value = s.github_repo;
+      }).catch(function () { });
+      $('#wzCancel').addEventListener('click', function () { nav('#/templates'); bootData(); });
     }
-    const form = qs(app, '#wizard-form');
-    const errBox = qs(app, '#wizard-err');
-    form.addEventListener('submit', async (ev) => {
+    $('#authForm').addEventListener('submit', async function (ev) {
       ev.preventDefault();
-      const btn = qs(app, '#wizard-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> 保存中...';
-      errBox.style.display = 'none';
+      const err = $('#authErr'), btn = $('#authBtn');
+      err.hidden = true;
+      const token = $('#wzToken').value.trim();
+      if (!token && !opt.reconfigure) { err.textContent = '请填写 GitHub Token'; err.hidden = false; return; }
+      btn.disabled = true; btn.textContent = '保存中…';
       try {
-        const tokenInput = qs(app, '#wz-token').value.trim();
-        if (!tokenInput && !isReconfigure) throw new Error('请填写 GitHub PAT');
-        const { report_token } = await api.setupWizard({
-          worker_url: qs(app, '#wz-worker-url').value.trim(),
-          github_repo: qs(app, '#wz-repo').value.trim(),
-          github_token: tokenInput,
-          keep_existing_token: isReconfigure && !tokenInput,
+        const r = await api.setupWizard({
+          worker_url: $('#wzUrl').value.trim(), github_repo: $('#wzRepo').value.trim(),
+          github_token: token, keep_existing_token: !!opt.reconfigure && !token,
         });
-        form.style.display = 'none';
-        const resultBox = qs(app, '#wizard-result');
-        resultBox.style.display = 'block';
-        qs(app, '#wizard-token').textContent = report_token;
-        qs(app, '#wizard-copy-btn').addEventListener('click', async () => {
-          try { await navigator.clipboard.writeText(report_token); toast('已复制'); } catch {}
-        });
-        qs(app, '#wizard-done-btn').addEventListener('click', async () => {
-          store.systemStatus = 'ready';
-          navigate('#/templates');
-          await bootAfterLogin();
-        });
+        $('#authForm').hidden = true;
+        const done = $('#wzDone');
+        done.hidden = false;
+        done.innerHTML = '<div class="auth-done"><div class="auth-ok">' + ic('check') + '</div><h2>还差一条 Secret</h2>' +
+          '<p class="auth-sub">去 GitHub 仓库 → Settings → Secrets and variables → Actions，新建 <code>REPORT_TOKEN</code>，值就是下面这串。关掉页面后不再显示明文。</p>' +
+          '<div class="token-box"><code id="wzTok">' + esc(r.report_token) + '</code><button class="btn btn-sm" id="wzCopy">' + ic('copy') + '复制</button></div>' +
+          '<button class="btn btn-primary btn-lg btn-block" id="wzGo" style="margin-top:14px">已添加，进入控制台</button></div>';
+        $('#wzCopy').addEventListener('click', function () { copyText(r.report_token); });
+        $('#wzGo').addEventListener('click', function () { S.status = 'ready'; nav('#/templates'); bootData(); });
       } catch (e) {
-        errBox.textContent = e.message || '保存失败';
-        errBox.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = '保存并生成 REPORT_TOKEN';
+        err.textContent = e.message || '保存失败'; err.hidden = false;
+        btn.disabled = false; btn.textContent = '保存并生成 REPORT_TOKEN';
       }
     });
+    return;
   }
-  
-  function renderTopbar(activeName) {
-    return \`
-    <div class="topbar">
-      <div class="brand"><span class="dot"></span><span class="label">OpenWrt 自动编译</span></div>
-      <nav>
-        <button data-nav="#/store" class="\${activeName === 'store' ? 'active' : ''}">插件商店</button>
-        <button data-nav="#/templates" class="\${activeName === 'templates' || activeName === 'template-detail' || activeName === 'trigger' ? 'active' : ''}">模板</button>
-        <button data-nav="#/builds" class="\${activeName === 'builds' ? 'active' : ''}">编译记录</button>
-      </nav>
-      <div class="right">
-        <button class="ghost small" id="import-tpl-btn">导入模板</button>
-        <div class="settings-dropdown">
-          <button class="ghost small" id="settings-btn">⚙️ ▾</button>
-          <div class="menu" id="settings-menu">
-            <button id="menu-reconfigure-github">重新配置 GitHub 连接</button>
-            <button id="menu-reset-report-token">重置 REPORT_TOKEN</button>
-            <div class="sep"></div>
-            <div class="menu-label">危险区域</div>
-            <button class="danger" id="menu-reset-all">重置所有配置</button>
-            <div class="sep"></div>
-            <button id="menu-logout">退出登录</button>
-          </div>
-        </div>
-      </div>
-    </div>\`;
-  }
-  
-  function bindTopbar(root) {
-    qsa(root, '[data-nav]').forEach((b) => { b.addEventListener('click', () => navigate(b.dataset.nav)); });
-    qs(root, '#import-tpl-btn')?.addEventListener('click', openImportModal);
-  
-    const settingsBtn = qs(root, '#settings-btn');
-    const menu = qs(root, '#settings-menu');
-    if (settingsBtn && menu) {
-      settingsBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        menu.classList.toggle('open');
-      });
-      document.addEventListener('click', () => menu.classList.remove('open'), { once: true });
-    }
-  
-    qs(root, '#menu-logout')?.addEventListener('click', async () => {
-      try { await api.logout(); } catch {}
-      store.authed = false;
-      store.systemStatus = 'ready';
-      renderLogin();
-    });
-  
-    qs(root, '#menu-reconfigure-github')?.addEventListener('click', () => {
-      renderSetupWizard({ reconfigure: true });
-    });
-  
-    qs(root, '#menu-reset-report-token')?.addEventListener('click', async () => {
-      if (!confirm('重置后旧的 REPORT_TOKEN 将立即失效，需要重新前往 GitHub 更新 Secret，确认继续？')) return;
-      try {
-        const { report_token } = await api.resetReportToken();
-        showReportTokenModal(report_token);
-      } catch (e) {
-        reportApiError(e, '重置失败');
-      }
-    });
-  
-    qs(root, '#menu-reset-all')?.addEventListener('click', async () => {
-      if (!confirm('这将清空全部配置（包括登录密码），系统会回到初始化状态，确认继续？')) return;
-      try {
-        await api.settingsReset('all');
-        store.authed = false;
-        store.systemStatus = 'uninitialized';
-        render();
-      } catch (e) {
-        reportApiError(e, '重置失败');
-      }
-    });
-  }
-  
-  function showReportTokenModal(token) {
-    const overlay = el(\`
-    <div class="modal-overlay">
-      <div class="modal-box" style="max-width:480px;">
-        <div class="modal-head"><h3>新的 REPORT_TOKEN</h3><button class="ghost small" id="rt-close-btn">关闭</button></div>
-        <div class="modal-body">
-          <div class="step-banner">请前往 GitHub → Settings → Secrets → Actions，更新 <code>REPORT_TOKEN</code> 的值为下方内容。关闭本窗口后将不再显示明文。</div>
-          <div class="token-box">
-            <code id="rt-token-text">\${escapeHtml(token)}</code>
-            <button type="button" class="ghost small" id="rt-copy-btn">复制</button>
-          </div>
-        </div>
-      </div>
-    </div>\`);
-    document.body.appendChild(overlay);
-    qs(overlay, '#rt-close-btn').addEventListener('click', () => overlay.remove());
-    qs(overlay, '#rt-copy-btn').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(token); toast('已复制'); } catch {}
-    });
-  }
-  
-  async function renderTemplatesPage() {
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div id="toast-wrap" class="toast-wrap"></div>
-    \${renderTopbar('templates')}
-    <div class="content">
-      <div class="page-head">
-        <div>
-          <h1>编译模板</h1>
-          <div class="sub">每个模板是一套保存好的机型和插件清单，找到它点「编译」即可</div>
-        </div>
-        <div class="actions">
-          <button class="primary" id="new-tpl-btn">+ 新建模板</button>
-        </div>
-      </div>
-      <div id="tpl-list-area"><div style="text-align:center;padding:40px;"><span class="spinner"></span></div></div>
-    </div>\`;
-    bindTopbar(app);
-    qs(app, '#new-tpl-btn').addEventListener('click', () => navigate('#/store'));
+  app.innerHTML = authFrame(
+    '<h1>登录</h1><p class="auth-sub">输入访问密码进入控制台。</p>' +
+    '<form id="authForm"><div class="field"><label>访问密码</label><input class="input" type="password" id="pw" autocomplete="current-password" autofocus required /></div>' +
+    '<div class="auth-err" id="authErr" hidden></div>' +
+    '<button class="btn btn-primary btn-lg btn-block" id="authBtn" type="submit">' + ic('lock') + '登录</button></form>' +
+    '<div class="auth-foot">固件由 GitHub Actions 编译，Worker 只负责排队和记录。</div>'
+  );
+  $('#authForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    const err = $('#authErr'), btn = $('#authBtn');
+    err.hidden = true;
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>登录中…';
     try {
-      const { templates } = await api.listTemplates();
-      store.templates = templates;
-      renderTemplateList(templates);
+      await api.login($('#pw').value);
+      S.authed = true;
+      const st = await api.setupStatus().catch(function () { return { status: 'ready' }; });
+      S.status = st.status;
+      if (S.status === 'ready') { nav('#/templates'); bootData(); }
+      else renderAuth('wizard');
     } catch (e) {
-      qs(app, '#tpl-list-area').innerHTML = \`<div class="empty-state"><div class="msg">加载失败：\${escapeHtml(e.message)}</div></div>\`;
+      err.textContent = e.message || '登录失败'; err.hidden = false;
+      btn.disabled = false; btn.innerHTML = ic('lock') + '登录';
     }
+  });
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('已复制到剪贴板'); }
+  catch (e) { toast('复制失败，请手动选中', '', 'err'); }
+}
+
+/* ============================================================
+   编译记录卡片 / 模板页 / 模板详情
+   ============================================================ */
+
+function pillOf(status) {
+  const st = ST[status] || ST.never;
+  return '<span class="pill ' + st.cls + '">' + st.t + '</span>';
+}
+function buildMeta(b) {
+  const bits = [];
+  bits.push('<span class="mono">' + esc(b.target || '—') + (b.profile ? ' / ' + esc(b.profile) : '') + '</span>');
+  bits.push('<span>' + (b.trigger_type === 'scheduled' ? '定时' : '手动') + '</span>');
+  if (b.status === 'success' || b.status === 'failed' || b.status === 'cancelled') bits.push('<span>' + fmtDur(b.created_at, b.updated_at) + '</span>');
+  if (b.cache_from) bits.push('<span class="tag-inline">' + ic('zap') + '用了缓存</span>');
+  if (b.cache_tag) bits.push('<span class="tag-inline">' + ic('save') + '已存缓存 ' + fmtSize(b.cache_size) + '</span>');
+  return '<div class="build-meta">' + bits.join('<span class="sep">·</span>') + '</div>';
+}
+function buildTime(b) {
+  const isAct = ACTIVE.indexOf(b.status) >= 0;
+  if (isAct) {
+    const m = Math.max(1, Math.floor((Date.now() - Number(b.created_at)) / 60000));
+    return '已用 ' + m + ' 分';
   }
-  
-  function renderTemplateList(templates) {
-    const area = document.getElementById('tpl-list-area');
-    if (!area) return;
-    if (!templates.length) {
-      area.innerHTML = \`
-      <div class="empty-state">
-        <div class="glyph">∅</div>
-        <div class="msg">还没有任何编译模板</div>
-        <div class="sub">点击右上角"新建模板"，在插件商店里选好机型和插件，或导入已有的模板文件</div>
-      </div>\`;
-      return;
-    }
-    area.innerHTML = \`<div class="template-grid">\${templates.map(templateRowHtml).join('')}</div>\`;
-    qsa(area, '.template-row').forEach((row) => {
-      row.addEventListener('click', (ev) => {
-        const bb = ev.target.closest('[data-build]');
-        if (bb) { buildFromList(bb.dataset.build, bb); return; }
-        if (ev.target.closest('[data-stop]')) return;
-        navigate(\`#/template/\${row.dataset.id}\`);
-      });
-    });
+  return fmtTime(b.created_at);
+}
+function buildCard(b, compact) {
+  const tpl = tplById(b.template_id);
+  const name = tpl ? tpl.name : '已删除的模板';
+  const isAct = ACTIVE.indexOf(b.status) >= 0;
+  const failed = b.status === 'failed';
+  const detail = [b.log_tail].filter(Boolean).join('\\n');
+  const steps = ['排队', '准备', '编译', '完成'];
+  let idx = 0;
+  if (b.status === 'queued') idx = 0;
+  else if (b.status === 'pending') idx = 0;
+  else if (b.status === 'running') idx = 1;
+  else if (b.status === 'menuconfig' || b.status === 'compiling') idx = 2;
+  else if (b.status === 'success') idx = 4;
+  const tl = steps.map(function (s, i) {
+    const done = i < idx;
+    const cur = i === idx && isAct;
+    const dot = done ? 'done' : cur ? 'cur' : '';
+    return '<span class="tl-step"><span class="tl-dot ' + dot + '" title="' + s + '"></span>' + (i < steps.length - 1 ? '<span class="tl-bar ' + (done ? 'done' : '') + '"></span>' : '') + '</span>';
+  }).join('');
+
+  const links = [];
+  if (b.web_url) links.push('<a href="' + esc(b.web_url) + '" target="_blank" rel="noopener">' + ic('terminal') + '打开网页终端</a>');
+  if (b.download_url) links.push('<a href="' + esc(b.download_url) + '" target="_blank" rel="noopener">' + ic('download') + '下载产物</a>');
+  if (b.has_snapshot) links.push('<button class="lnk" data-bact="cfg" data-id="' + b.id + '" data-kind="snapshot">' + ic('list') + '查看底稿</button>');
+  if (b.has_result) links.push('<button class="lnk" data-bact="cfg" data-id="' + b.id + '" data-kind="result">' + ic('list') + '查看最终配置</button>');
+  if (isAct && b.use_ccache) links.push('<button class="lnk" data-bact="pub" data-id="' + b.id + '" data-on="' + (b.cache_publish ? '1' : '0') + '">' + ic('save') + (b.cache_publish ? '完成后发布缓存 ✓' : '完成后发布缓存') + '</button>');
+
+  return '<div class="build' + (compact ? ' compact' : '') + '" data-build="' + b.id + '">' +
+    '<div class="build-top">' +
+      pillOf(b.status) +
+      '<span class="nm">' + esc(name) + '</span>' +
+      '<span class="tm">' + esc(buildTime(b)) + '</span>' +
+      (compact ? '' : '<span class="right">' +
+        (isAct ? '<button class="btn btn-sm btn-ghost" data-bact="cancel" data-id="' + b.id + '">' + ic('stop') + '取消</button>' : '') +
+      '</span>') +
+    '</div>' +
+    buildMeta(b) +
+    (isAct ? '<div class="progress"><span class="bar"><i class="indet"></i></span><span class="pct">…</span></div><div class="timeline">' + tl + '</div>' : (b.status === 'success' ? '<div class="timeline">' + tl + '</div>' : '')) +
+    (failed && b.fail_reason ? '<div class="fail-line">' + ic('alert') + '<span>' + esc(b.fail_reason) + '</span></div>' : '') +
+    (detail ? '<details class="fail-detail"><summary>' + ic('right') + (failed ? '详细日志与处理建议' : '构建说明') + '</summary><pre>' + esc(detail) + '</pre></details>' : '') +
+    (links.length && !compact ? '<div class="build-links">' + links.join('') + '</div>' : '') +
+  '</div>';
+}
+
+/* ---------------- 模板页 ---------------- */
+async function viewTemplates() {
+  const view = $('#view');
+  view.innerHTML = '<header class="page-head"><div><div class="eyebrow">WORKSPACE <b>/</b> TEMPLATES</div><h1>模板</h1>' +
+    '<div class="sub">一个模板就是一套「机型 + 插件清单 + 编译选项」，下次想再编一份，点一下就好。</div></div>' +
+    '<div class="actions"><button class="btn" id="btnImport">' + ic('save') + '导入模板</button>' +
+    '<button class="btn btn-primary" id="btnNew">' + ic('plus') + '新建模板</button></div></header>' +
+    '<div id="tplArea"><div class="loading">' + ic('refresh') + '<span>读取模板…</span></div></div>';
+  $('#btnNew').addEventListener('click', function () { nav('#/store'); });
+  $('#btnImport').addEventListener('click', openImportModal);
+
+  try {
+    const r = await api.templates();
+    S.templates = r.templates || [];
+  } catch (e) {
+    $('#tplArea').innerHTML = '<div class="empty"><div class="g">' + ic('alert') + '</div><div class="m">模板读取失败</div><div class="s">' + esc(e.message) + '</div></div>';
+    return;
   }
-  
-  async function buildFromList(id, btn) {
-    const t = (store.templates || []).find((x) => x.id === id);
-    if (!confirm('编译「' + (t ? t.name : '') + '」？')) return;
-    btn.disabled = true;
-    try { await api.trigger({ template_id: id }); toast('已提交编译任务', 'success'); navigate('#/builds'); }
-    catch (e) { reportApiError(e, '提交失败'); btn.disabled = false; }
+  if (S.route.name !== 'templates') return;
+  drawTemplates();
+}
+
+function drawTemplates() {
+  const area = $('#tplArea');
+  if (!area) return;
+  const now = Date.now();
+  const recent = S.builds.filter(function (b) { return now - Number(b.created_at) < 7 * 864e5; });
+  const done = recent.filter(function (b) { return b.status === 'success' || b.status === 'failed'; });
+  const ok = recent.filter(function (b) { return b.status === 'success'; });
+  const rate = done.length ? Math.round((ok.length / done.length) * 100) : null;
+  const durs = ok.map(function (b) { return Number(b.updated_at) - Number(b.created_at); }).filter(function (n) { return n > 0; });
+  const avg = durs.length ? Math.round(durs.reduce(function (a, b) { return a + b; }, 0) / durs.length / 60000) : null;
+  const act = activeBuilds().length;
+  const plats = {};
+  S.templates.forEach(function (t) { plats[String(t.target || '').split('/')[0]] = 1; });
+
+  const stats = '<div class="stats fade-up">' +
+    statCard('TEMPLATES', S.templates.length, '个', '覆盖 ' + Object.keys(plats).filter(Boolean).length + ' 个平台家族') +
+    statCard('BUILDING', act, '个', act ? '队列占用中' : '队列空闲') +
+    statCard('SUCCESS · 7D', ok.length, '次', rate === null ? '最近没有完成的编译' : '<b class="' + (rate < 60 ? 'bad' : '') + '">' + rate + '%</b> 成功率') +
+    statCard('AVG TIME', avg === null ? '—' : avg, avg === null ? '' : '分', '最近 7 次成功编译的平均耗时') +
+  '</div>';
+
+  if (!S.templates.length) {
+    area.innerHTML = stats + '<div class="empty" style="margin-top:16px"><div class="g">' + ic('layers') + '</div>' +
+      '<div class="m">还没有任何模板</div><div class="s">去插件商店选好机型和插件，点「生成模板」就能得到第一个</div>' +
+      '<button class="btn btn-primary" style="margin-top:16px" id="emptyNew">' + ic('plus') + '新建模板</button></div>';
+    const b = $('#emptyNew'); if (b) b.addEventListener('click', function () { nav('#/store'); });
+    return;
   }
 
-  function templateRowHtml(t) {
-    const n = (t.selection && t.selection.length) ? t.selection.length : (t.plugins || []).length;
-    const schedTag = t.schedule_enabled ? \`<span class="badge warn">定时 \${escapeHtml(t.schedule_cron || '')}</span>\` : \`<span class="badge dim">未定时</span>\`;
-    const pinTag = t.pin_dotconfig_version_id ? \`<span class="badge dim">固定配置</span>\` : '';
-    return \`
-    <div class="template-row" data-id="\${t.id}">
-      <div class="main">
-        <div class="name">\${escapeHtml(t.name)}</div>
-        <div class="meta">\${escapeHtml(t.target)}\${t.profile ? ' · ' + escapeHtml(t.profile) : ''} · \${escapeHtml(t.branch)} · \${n} 个插件</div>
-      </div>
-      <div class="tags">\${pinTag}\${schedTag}<button class="small primary" data-stop data-build="\${t.id}">编译</button></div>
-      <div class="chevron">›</div>
-    </div>\`;
-  }
-  
-  function openModal(html, { onMount } = {}) {
-    const overlay = el(\`<div class="modal-overlay">\${html}</div>\`);
-    document.body.appendChild(overlay);
-    overlay.addEventListener('mousedown', (ev) => { if (ev.target === overlay) closeModal(overlay); });
-    const onKey = (ev) => { if (ev.key === 'Escape') closeModal(overlay); };
-    document.addEventListener('keydown', onKey);
-    overlay._onKey = onKey;
-    if (onMount) onMount(overlay);
-    return overlay;
-  }
-  
-  function closeModal(overlay) {
-    if (!overlay) return;
-    document.removeEventListener('keydown', overlay._onKey);
-    overlay.remove();
-  }
-  
-  function openTemplateEditModal(tpl) {
-    const overlay = openModal(\`
-    <div class="modal-box">
-      <div class="modal-head">
-        <h3>名称与自定义脚本</h3>
-        <button class="ghost small" data-close>✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="field">
-          <label>模板名称</label>
-          <input type="text" id="f-name" maxlength="80" value="\${escapeHtml(tpl.name || '')}" />
-        </div>
-        <div class="field">
-          <label>自定义脚本 (feeds update 之前执行)</label>
-          <textarea id="f-script1" rows="5" placeholder="#!/bin/bash">\${escapeHtml(tpl.diy_script_1 || '')}</textarea>
-        </div>
-        <div class="field">
-          <label>自定义脚本② (feeds install 之后执行)</label>
-          <textarea id="f-script2" rows="5" placeholder="#!/bin/bash">\${escapeHtml(tpl.diy_script_2 || '')}</textarea>
-        </div>
-        <div class="hint">机型和插件请点「编辑机型和插件」回到商店修改。</div>
-      </div>
-      <div class="modal-foot">
-        <button data-close>取消</button>
-        <button class="primary" id="save-tpl-btn">保存更改</button>
-      </div>
-    </div>\`, {
-      onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        qs(root, '#save-tpl-btn').addEventListener('click', async () => {
-          const body = { name: qs(root, '#f-name').value.trim(), diy_script_1: qs(root, '#f-script1').value, diy_script_2: qs(root, '#f-script2').value };
-          if (!body.name) { toast('请填写模板名称', 'error'); return; }
-          const btn = qs(root, '#save-tpl-btn');
-          btn.disabled = true;
-          try {
-            await api.updateTemplate(tpl.id, body);
-            toast('模板已更新', 'success');
-            closeModal(root);
-            refreshTemplateDetail(tpl.id);
-          } catch (e) { reportApiError(e, '保存失败'); btn.disabled = false; }
-        });
-      }
-    });
-    return overlay;
-  }
-  
-  function openImportModal() {
-    const overlay = openModal(\`
-    <div class="modal-box" style="max-width:480px;">
-      <div class="modal-head">
-        <h3>导入模板</h3>
-        <button class="ghost small" data-close>✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="field">
-          <label>选择 .openwrt-template.json 文件</label>
-          <input type="file" id="import-file" accept=".json,application/json" />
-        </div>
-        <div class="hint">导入后将新建一个模板，若与现有模板重名会自动加 "(导入)"后缀</div>
-        <div id="import-err" class="error-msg" style="display:none; margin-top:10px;"></div>
-      </div>
-      <div class="modal-foot">
-        <button data-close>取消</button>
-        <button class="primary" id="do-import-btn" disabled>导入</button>
-      </div>
-    </div>\`, {
-      onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        const fileInput = qs(root, '#import-file');
-        const importBtn = qs(root, '#do-import-btn');
-        const errBox = qs(root, '#import-err');
-        let parsed = null;
-        fileInput.addEventListener('change', async () => {
-          errBox.style.display = 'none';
-          importBtn.disabled = true;
-          parsed = null;
-          const file = fileInput.files[0];
-          if (!file) return;
-          try {
-            const text = await file.text();
-            parsed = JSON.parse(text);
-            if (parsed.export_version !== 1) throw new Error(\`不支持的 export_version: \${parsed.export_version}\`);
-            importBtn.disabled = false;
-          } catch (e) {
-            errBox.textContent = \`文件解析失败：\${e.message}\`;
-            errBox.style.display = 'block';
-          }
-        });
-        importBtn.addEventListener('click', async () => {
-          if (!parsed) return;
-          importBtn.disabled = true;
-          importBtn.innerHTML = '<span class="spinner"></span> 导入中...';
-          try {
-            const res = await api.importTemplate(parsed);
-            toast('模板导入成功', 'success');
-            closeModal(root);
-            navigate(\`#/template/\${res.template.id}\`);
-          } catch (e) {
-            errBox.textContent = e.message || '导入失败';
-            errBox.style.display = 'block';
-            importBtn.disabled = false;
-            importBtn.textContent = '导入';
-          }
-        });
-      }
-    });
-    return overlay;
-  }
-  
-  async function renderTemplateDetailPage(id) {
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div id="toast-wrap" class="toast-wrap"></div>
-    \${renderTopbar('template-detail')}
-    <div class="content">
-      <div class="detail-back"><button class="ghost small" id="back-btn">‹ 返回模板列表</button></div>
-      <div id="detail-area"><div style="text-align:center;padding:40px;"><span class="spinner"></span></div></div>
-    </div>\`;
-    bindTopbar(app);
-    qs(app, '#back-btn').addEventListener('click', () => navigate('#/templates'));
-    let tpl, history;
-    try {
-      [{ template: tpl }, { history }] = await Promise.all([api.getTemplate(id), api.listHistory(id)]);
-    } catch (e) {
-      qs(app, '#detail-area').innerHTML = \`<div class="empty-state"><div class="msg">加载失败：\${escapeHtml(e.message)}</div></div>\`;
-      return;
-    }
-    renderTemplateDetailBody(tpl, history);
-  }
-  
-  function tplConfigLines(tpl) {
-    const NL = String.fromCharCode(10), lines = [], tp = String(tpl.target || '').split('/');
-    if (tpl.profile && tp.length === 2) lines.push('CONFIG_TARGET_' + tp[0] + '=y', 'CONFIG_TARGET_' + tp[0] + '_' + tp[1] + '=y', 'CONFIG_TARGET_' + tp[0] + '_' + tp[1] + '_DEVICE_' + tpl.profile + '=y');
-    (tpl.packages || []).forEach((p) => { lines.push('CONFIG_PACKAGE_' + p + '=y'); });
-    return lines.join(NL);
-  }
-  async function tplEnsureCatalog() { if (!STORE.loaded) storeApplyCatalog(await api.get('/api/catalog')); }
-  // 由插件选择重新算出包清单和第三方来源（移除插件后用）
-  function tplCompose(ids, tpl) {
-    const S = ids.map((id) => storeBy(id) || storeSynth(id, tpl.plugins)), pk = new Set();
-    S.forEach((p) => { pk.add(p.id); (p.requires || []).forEach((r) => { pk.add(r); }); });
-    return { selection: ids, packages: Array.from(pk), plugins: storeMergePlugins(S) };
-  }
-
-  function renderTemplateDetailBody(tpl, history) {
-    const area = document.getElementById('detail-area');
-    area.innerHTML = '<div class="page-head"><div><h1>' + escapeHtml(tpl.name) + '</h1><div class="sub mono">' + escapeHtml(tpl.repo_url) + ' @ ' + escapeHtml(tpl.branch) + ' · ' + escapeHtml(tpl.target) + (tpl.profile ? ' · ' + escapeHtml(tpl.profile) : '') + '</div></div>'
-      + '<div class="actions"><button id="edit-tpl-btn">名称与脚本</button><button id="edit-store-btn">编辑机型和插件</button><button class="primary" id="build-btn">编译</button></div></div>'
-      + '<div class="section"><h2><span>固件清单</span></h2><div id="manifest-area"></div></div>'
-      + '<div class="section"><h2><span>编译选项</span></h2><div id="options-area"></div></div>'
-      + '<div class="section"><h2><span>定时编译</span></h2><div id="schedule-area"></div></div>'
-      + '<div class="section"><h2><span>.config 版本历史</span><span class="actions"><button class="small" id="export-tpl-btn">导出模板</button><button class="small" id="upload-cfg-btn">上传新版本</button></span></h2><div id="version-history-area"></div></div>'
-      + '<div class="section"><h2><span>危险操作</span></h2><button class="danger" id="delete-tpl-btn">删除该模板</button></div>';
-
-    qs(area, '#edit-tpl-btn').addEventListener('click', () => openTemplateEditModal(tpl));
-    qs(area, '#edit-store-btn').addEventListener('click', () => navigate('#/store/' + tpl.id));
-    qs(area, '#export-tpl-btn').addEventListener('click', () => exportTemplate(tpl));
-    qs(area, '#upload-cfg-btn').addEventListener('click', () => openUploadConfigModal(tpl));
-    qs(area, '#delete-tpl-btn').addEventListener('click', () => confirmDeleteTemplate(tpl));
-    qs(area, '#build-btn').addEventListener('click', async (ev) => {
-      const btn = ev.currentTarget;
-      btn.disabled = true; btn.textContent = '提交中…';
-      try { await api.trigger({ template_id: tpl.id }); toast('已提交编译任务', 'success'); navigate('#/builds'); }
-      catch (e) { reportApiError(e, '提交失败'); btn.disabled = false; btn.textContent = '编译'; }
-    });
-    renderManifest(tpl);
-    renderOptions(tpl, history);
-    renderVersionHistory(tpl, history);
-    renderScheduleSection(tpl, history);
-  }
-
-  async function renderManifest(tpl) {
-    const wrap = document.getElementById('manifest-area');
-    try { await tplEnsureCatalog(); } catch (e) { /* 目录读取失败时仍显示包名 */ }
-    const ids = (tpl.selection && tpl.selection.length) ? tpl.selection : null;
-    let h = '<div class="hint">机型：<b>' + (tpl.profile ? escapeHtml(tpl.profile) : '未选择') + '</b> · 平台 ' + escapeHtml(tpl.target) + '</div>';
-    if (ids) {
-      h += '<div class="hint" style="margin:8px 0 4px">已选插件 ' + ids.length + ' 个（共 ' + (tpl.packages || []).length + ' 个包，含自动依赖）。移除插件在这里直接点 ×，要添加请点右上角「编辑机型和插件」。</div><div class="chip-row">'
-        + ids.map((id) => { const p = storeBy(id); return '<span class="chip">' + escapeHtml(p ? p.name : id) + (p && p.custom ? ' <small>自定义</small>' : '') + (!p ? ' <small>目录已无</small>' : '') + '<button data-rm-plugin="' + escapeHtml(id) + '" aria-label="移除">×</button></span>'; }).join('') + '</div>';
-    } else if ((tpl.packages || []).length) {
-      h += '<div class="hint" style="margin:8px 0 4px">这个模板是旧版本创建的，没有记录插件选择。点右上角「编辑机型和插件」重新选一次并保存，就能在这里管理。当前包清单（' + tpl.packages.length + ' 个）：</div><div class="hint mono" style="word-break:break-all">' + escapeHtml(tpl.packages.join(', ')) + '</div>';
-    } else {
-      h += '<div class="hint" style="margin:8px 0 4px">还没有插件清单。点右上角「编辑机型和插件」去选择。</div>';
-    }
-    if ((tpl.plugins || []).length) {
-      h += '<div class="hint" style="margin:10px 0 4px">第三方插件来源（' + tpl.plugins.length + '）：</div>' + tpl.plugins.map((p) => '<div class="hint mono" style="margin-bottom:3px">' + escapeHtml(p.name) + ' — ' + escapeHtml(p.feed || p.git_url || '') + (p.sparse ? ' (子目录: ' + escapeHtml((p.dirs || []).join(', ')) + (p.branch ? ' @ ' + escapeHtml(p.branch) : '') + ')' : (p.branch ? ' @ ' + escapeHtml(p.branch) : '')) + '</div>').join('');
-    }
-    h += '<details style="margin-top:10px"><summary class="hint">查看将写入的配置行</summary><textarea readonly style="width:100%;height:140px;font:11.5px/1.5 monospace;margin-top:6px">' + escapeHtml(tplConfigLines(tpl)) + '</textarea><div class="hint">编译时，源码会先生成这个机型的默认配置，再合并这些行，并检查是否都生效；有没生效的会直接失败，并告诉你是哪几个。</div></details>';
-    wrap.innerHTML = h;
-    qsa(wrap, '[data-rm-plugin]').forEach((b) => b.addEventListener('click', async () => {
-      const next = ids.filter((x) => x !== b.dataset.rmPlugin);
-      try { await api.updateTemplate(tpl.id, tplCompose(next, tpl)); toast('已移除', 'success'); refreshTemplateDetail(tpl.id); }
-      catch (e) { reportApiError(e, '移除失败'); }
-    }));
-  }
-
-  function renderOptions(tpl, history) {
-    const wrap = document.getElementById('options-area');
-    const pin = tpl.pin_dotconfig_version_id || '';
-    const opts = '<option value="">不固定（推荐）：每次按上面的清单重新生成</option>' + history.map((v) => {
-      const label = (SOURCE_LABELS[v.source] || v.source) + ' ' + fmtTime(v.created_at) + (v.label ? ' "' + v.label + '"' : '');
-      return '<option value="' + v.id + '"' + (v.id === pin ? ' selected' : '') + '>固定为：' + escapeHtml(label) + '</option>';
+  const cards = S.templates.map(function (t) {
+    const live = S.builds.filter(function (b) { return b.template_id === t.id && ACTIVE.indexOf(b.status) >= 0; })[0];
+    const last = live || lastBuildOf(t.id);
+    const st = last ? (ST[last.status] || ST.never) : ST.never;
+    const ids = (t.selection && t.selection.length) ? t.selection : (t.packages || []);
+    const shown = ids.slice(0, 4);
+    const chips = shown.map(function (id) {
+      const p = pluginById(id);
+      return '<span class="chip"><span class="dot" style="background:' + catFg(p ? p.cat : '自定义') + '"></span>' + esc(p ? p.name : id) + '</span>';
     }).join('');
-    wrap.innerHTML = '<label class="st-opt"><input type="checkbox" id="opt-mc"' + (tpl.menuconfig ? ' checked' : '') + '><span>编译前进入 menuconfig 微调<small>默认不需要，仅在要改内核或驱动时开启。定时编译不会进入 menuconfig。</small></span></label>'
-      + '<div class="field" style="margin:14px 0 0"><label>配置底稿</label><select id="opt-pin">' + opts + '</select>'
-      + '<div class="hint">固定后，编译直接使用该版本，不再叠加上面的机型和插件清单。menuconfig 里保存的配置不会自动固定，要沿用它请在这里选择对应版本。手动编译和定时编译共用这个设置。</div></div>';
-    qs(wrap, '#opt-mc').addEventListener('change', async (e) => {
-      try { await api.updateTemplate(tpl.id, { menuconfig: e.target.checked }); toast(e.target.checked ? '编译时将进入 menuconfig' : '编译时不进入 menuconfig', 'success'); }
-      catch (err) { reportApiError(err, '保存失败'); e.target.checked = !e.target.checked; }
-    });
-    qs(wrap, '#opt-pin').addEventListener('change', async (e) => {
-      try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: e.target.value }); toast(e.target.value ? '已固定配置底稿' : '已取消固定', 'success'); refreshTemplateDetail(tpl.id); }
-      catch (err) { reportApiError(err, '保存失败'); }
-    });
-    renderCacheOptions(wrap, tpl);
-  }
+    return '<article class="tpl" data-tpl="' + t.id + '">' +
+      '<div class="tpl-top"><div style="min-width:0">' +
+        '<div class="tpl-name">' + esc(t.name) + '</div>' +
+        '<div class="tpl-dev">' + esc(t.target || '未选平台') + (t.profile ? ' <i>/</i> ' + esc(t.profile) : '') + (t.branch ? ' <i>@</i> ' + esc(t.branch) : '') + '</div>' +
+      '</div><span class="pill ' + st.cls + '">' + (live ? '编译中' : st.t) + '</span></div>' +
+      '<div class="tpl-chips">' + (chips || '<span class="chip">未选插件</span>') +
+        (ids.length > 4 ? '<span class="chip">+' + (ids.length - 4) + '</span>' : '') + '</div>' +
+      '<div class="tpl-foot">' +
+        '<span class="last">' + ic('clock') + (last ? (live ? '进行中 · ' + buildTime(live) : fmtRel(last.created_at)) : '尚未编译') + '</span>' +
+        (t.schedule_enabled ? '<span class="tag">' + ic('refresh') + esc(t.schedule_cron || '定时') + '</span>' : '') +
+        (t.pin_dotconfig_version_id ? '<span class="tag">' + ic('lock') + '固定配置</span>' : '') +
+        '<span class="spacer"></span>' +
+        '<button class="btn btn-sm btn-soft" data-tpl-build="' + t.id + '">' + ic('play') + '编译</button>' +
+      '</div></article>';
+  }).join('');
 
-  function renderCacheOptions(wrap, tpl) {
-    const box = el('<div class="field" style="margin:14px 0 0"><label>编译缓存（ccache）</label>'
-      + '<select id="opt-cache-use"><option value="">不使用缓存</option><option value="latest">使用同平台最新的缓存</option></select>'
-      + '<label class="st-opt" style="margin-top:10px"><input type="checkbox" id="opt-cache-pub"' + (tpl.cache_publish ? ' checked' : '') + '><span>编译完成后发布缓存<small>把这次编译的 ccache 打包发布到编译仓库的 Release，下次编译可以选择使用。最多保留最新 2 份，体积以实际为准（一般不超过 2 GB）。</small></span></label>'
-      + '<div class="hint">缓存只能加速重复的编译，机型或插件变化大时命中会变少；第一次发布缓存的那次编译不会更快，还会多花几分钟打包上传。缓存存放在你编译仓库的 Release 里，仓库是公开的话任何人都能下载。缓存只存在于编译机上，所以必须在编译开始前勾选，或在编译进行中点构建记录上的「完成后发布缓存」。</div></div>');
-    wrap.appendChild(box);
-    const sel = qs(box, '#opt-cache-use');
-    sel.value = (tpl.cache_use === 'latest') ? 'latest' : '';
-    api.listCaches().then(({ caches }) => {
-      (caches || []).forEach((c) => {
-        const o = document.createElement('option');
-        o.value = c.id;
-        o.textContent = '指定：' + fmtTime(c.cache_at) + ' · ' + (c.template_name || '已删除的模板') + ' · ' + c.target + ' · ' + fmtCacheSize(c.cache_size);
-        sel.appendChild(o);
-      });
-      if (tpl.cache_use && tpl.cache_use !== 'latest') {
-        if (!(caches || []).some((c) => c.id === tpl.cache_use)) {
-          const o = document.createElement('option');
-          o.value = tpl.cache_use; o.textContent = '指定的缓存已被清理（编译时不使用缓存）';
-          sel.appendChild(o);
+  const recentList = S.builds.slice(0, 4).map(function (b) { return buildCard(b, true); }).join('');
+  area.innerHTML = stats +
+    '<div class="tpl-grid stagger">' + cards + '</div>' +
+    '<button class="tpl-new" id="tplNew2"><span class="circle">' + ic('plus') + '</span><span>新建模板</span><small>去插件商店选机型和插件</small></button>' +
+    '<section class="card" style="margin-top:22px">' +
+      '<div class="card-head"><div><h2>最近编译</h2><div class="sub">所有模板的最新任务</div></div>' +
+      '<div class="right"><button class="btn btn-sm btn-ghost" data-nav2="builds">查看全部' + ic('right') + '</button></div></div>' +
+      '<div style="padding:12px 12px 4px">' + (recentList || '<div class="basket-empty">还没有编译记录</div>') + '</div>' +
+    '</section>';
+
+  $('#tplNew2').addEventListener('click', function () { nav('#/store'); });
+  const more = $('[data-nav2]', area); if (more) more.addEventListener('click', function () { nav('#/builds'); });
+  $$('[data-tpl]', area).forEach(function (card) {
+    card.addEventListener('click', function (ev) {
+      const b = ev.target.closest('[data-tpl-build]');
+      if (b) { ev.stopPropagation(); triggerBuild(b.dataset.tplBuild, b); return; }
+      nav('#/template/' + card.dataset.tpl);
+    });
+  });
+  drawQueue();
+}
+function statCard(k, v, unit, desc) {
+  return '<div class="stat"><div class="stat-k">' + k + '</div><div class="stat-v">' + v + (unit ? '<small>' + unit + '</small>' : '') + '</div><div class="stat-d">' + desc + '</div></div>';
+}
+
+async function triggerBuild(id, btn) {
+  const t = tplById(id);
+  const ok = await confirmBox({
+    title: '开始编译',
+    body: (t ? '「' + t.name + '」' : '该模板') + ' 会立刻提交到 GitHub Actions，一般 40 分钟到 1 小时出结果。',
+    ok: '开始编译',
+  });
+  if (!ok) return;
+  if (btn) btn.disabled = true;
+  try {
+    await api.trigger(id);
+    toast('已提交编译任务', '可以在编译记录里看进度', 'info');
+    await refreshBuilds();
+    nav('#/builds');
+  } catch (e) {
+    fail(e, '提交失败');
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* ---------------- 模板详情 ---------------- */
+function tplConfigLines(tpl) {
+  const lines = [];
+  const tp = String(tpl.target || '').split('/');
+  if (tpl.profile && tp.length === 2) {
+    lines.push('CONFIG_TARGET_' + tp[0] + '=y');
+    lines.push('CONFIG_TARGET_' + tp[0] + '_' + tp[1] + '=y');
+    lines.push('CONFIG_TARGET_' + tp[0] + '_' + tp[1] + '_DEVICE_' + tpl.profile + '=y');
+  }
+  (tpl.packages || []).forEach(function (p) { lines.push('CONFIG_PACKAGE_' + p + '=y'); });
+  return lines.join('\\n');
+}
+function composeFromSelection(ids, tpl) {
+  const S2 = ids.map(function (id) { return pluginById(id) || synthPlugin(id, tpl.plugins); });
+  const pk = {};
+  S2.forEach(function (p) { pk[p.id] = 1; (p.requires || []).forEach(function (r) { pk[r] = 1; }); });
+  return { selection: ids, packages: Object.keys(pk), plugins: mergePlugins(S2) };
+}
+
+async function viewDetail(id) {
+  const view = $('#view');
+  view.innerHTML = '<div class="crumbs"><a href="#/templates">模板</a>' + ic('right') + '<span>加载中…</span></div>' +
+    '<div class="loading">' + ic('refresh') + '<span>读取模板…</span></div>';
+  let tpl, history, caches;
+  try {
+    const r = await Promise.all([api.template(id), api.history(id), api.caches().catch(function () { return { caches: [] }; })]);
+    tpl = r[0].template;
+    history = r[1].history || [];
+    caches = r[2].caches || [];
+  } catch (e) {
+    view.innerHTML = '<div class="empty"><div class="g">' + ic('alert') + '</div><div class="m">模板读取失败</div><div class="s">' + esc(e.message) + '</div>' +
+      '<button class="btn" style="margin-top:16px" id="backTpl">返回模板列表</button></div>';
+    const b = $('#backTpl'); if (b) b.addEventListener('click', function () { nav('#/templates'); });
+    return;
+  }
+  try { await ensureCatalog(false); } catch (e) { /* 目录不可用时仍显示包名 */ }
+  if (S.route.name !== 'template' || S.route.params.id !== id) return;
+  renderDetail(tpl, history, caches);
+}
+
+function renderDetail(tpl, history, caches) {
+  const view = $('#view');
+  const ids = (tpl.selection && tpl.selection.length) ? tpl.selection : null;
+  const total = (tpl.packages || []).length;
+  const live = S.builds.filter(function (b) { return b.template_id === tpl.id && ACTIVE.indexOf(b.status) >= 0; })[0];
+  const pinned = tpl.pin_dotconfig_version_id ? history.filter(function (h) { return h.id === tpl.pin_dotconfig_version_id; })[0] : null;
+  const cacheLabel = !tpl.cache_use ? '未使用缓存' : tpl.cache_use === 'latest' ? '同平台最新缓存' : '指定的缓存';
+
+  view.innerHTML =
+    '<div class="crumbs"><a href="#/templates">模板</a>' + ic('right') + '<span>' + esc(tpl.name) + '</span></div>' +
+    '<header class="hero fade-up">' +
+      '<div class="hero-main">' +
+        '<div class="eyebrow">TEMPLATE <b>/</b> ' + esc(tpl.id.slice(0, 8)) + '</div>' +
+        '<h1>' + esc(tpl.name) + '</h1>' +
+        '<div class="meta">' +
+          '<span class="tag">' + ic('branch') + esc(tpl.branch || '—') + '</span>' +
+          '<span class="tag">' + esc(tpl.target || '未选平台') + (tpl.profile ? ' / ' + esc(tpl.profile) : '') + '</span>' +
+          '<span class="tag">' + ic('box') + (ids ? ids.length : total) + ' 个插件</span>' +
+          (tpl.menuconfig ? '<span class="tag">' + ic('terminal') + 'menuconfig</span>' : '') +
+          (tpl.schedule_enabled ? '<span class="tag">' + ic('clock') + '定时 ' + esc(tpl.schedule_cron || '') + '</span>' : '') +
+          (tpl.pin_dotconfig_version_id ? '<span class="tag">' + ic('lock') + '固定底稿</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="hero-actions">' +
+        '<button class="btn" id="editInfo">' + ic('edit') + '名称与脚本</button>' +
+        '<button class="btn" id="editStore">' + ic('grid') + '编辑机型和插件</button>' +
+        '<button class="btn btn-primary btn-lg" id="goBuild">' + ic('play') + (live ? '再编译一次' : '编译') + '</button>' +
+      '</div>' +
+      '<div class="kv">' +
+        kv('源码仓库', esc(String(tpl.repo_url || '').replace('https://github.com/', '')), 'mono') +
+        kv('平台 / 机型', esc((tpl.target || '—') + (tpl.profile ? ' / ' + tpl.profile : '')), 'mono') +
+        kv('编译缓存', cacheLabel) +
+        kv('配置底稿', pinned ? '固定于 ' + fmtTime(pinned.created_at) : '跟随清单') +
+        kv('定时编译', tpl.schedule_enabled ? esc(tpl.schedule_cron || '已开启') : '未开启') +
+      '</div>' +
+    '</header>' +
+    '<div class="detail-grid">' +
+      '<div class="stack">' +
+
+        '<section class="card" id="manifestCard"><div class="card-head"><div><h2>固件清单</h2>' +
+          '<div class="sub">' + (ids ? ids.length + ' 个插件，共 ' + total + ' 个包（含自动依赖）' : '这个模板没有记录插件选择') + '</div></div>' +
+          '<div class="right"><button class="btn btn-sm btn-ghost" id="addPlugin">' + ic('plus') + '添加</button></div></div>' +
+          '<div class="card-pad" id="manifestBody"></div></section>' +
+
+        '<section class="card" id="optCard"><div class="card-head"><div><h2>编译选项</h2><div class="sub">影响下一次编译，保存后立即生效</div></div></div>' +
+          '<div class="card-pad" id="optBody"></div></section>' +
+
+        '<section class="card" id="schedCard"><div class="card-head"><div><h2>定时编译</h2><div class="sub">到点自动按当前模板编一份</div></div>' +
+          (tpl.schedule_enabled ? '<span class="pill ok">已开启</span>' : '<span class="pill plain">未开启</span>') + '</div>' +
+          '<div class="card-pad" id="schedBody"></div></section>' +
+
+        '<section class="card" id="historyCard"><div class="card-head"><div><h2>.config 版本历史</h2><div class="sub">menuconfig 保存的结果和手动上传的配置都留在这里</div></div>' +
+          '<div class="right"><button class="btn btn-sm" id="uploadCfg">' + ic('plus') + '上传新版本</button></div></div>' +
+          '<div id="historyBody"></div></section>' +
+
+      '</div>' +
+      '<aside class="side-col">' +
+        '<section class="card"><div class="card-head"><div><h2>下一次编译</h2></div></div>' +
+          '<div class="card-pad" id="nextBody"></div></section>' +
+        '<section class="card"><div class="card-head"><div><h2>编译记录</h2><div class="sub">最近 5 次</div></div>' +
+          '<div class="right"><button class="btn btn-sm btn-ghost" id="allBuilds">全部' + ic('right') + '</button></div></div>' +
+          '<div style="padding:10px 10px 4px" id="tplBuilds"></div></section>' +
+        '<section class="card"><div class="card-head"><div><h2>模板</h2></div></div>' +
+          '<div class="card-pad" style="display:flex;flex-direction:column;gap:8px">' +
+            '<button class="btn btn-block" id="exportTpl">' + ic('download') + '导出模板文件</button>' +
+            '<button class="btn btn-block btn-danger" id="delTpl">' + ic('trash') + '删除这个模板</button>' +
+          '</div></section>' +
+      '</aside>' +
+    '</div>';
+
+  $('#editInfo').addEventListener('click', function () { openInfoModal(tpl); });
+  $('#editStore').addEventListener('click', function () { nav('#/store/' + tpl.id); });
+  $('#addPlugin').addEventListener('click', function () { nav('#/store/' + tpl.id); });
+  $('#goBuild').addEventListener('click', function (ev) {
+    const b = ev.currentTarget;
+    b.disabled = true;
+    api.trigger(tpl.id).then(function () {
+      toast('已提交编译任务', '可以在编译记录里看进度', 'info');
+      return refreshBuilds();
+    }).then(function () { nav('#/builds'); }).catch(function (e) { fail(e, '提交失败'); b.disabled = false; });
+  });
+  $('#allBuilds').addEventListener('click', function () { nav('#/builds'); });
+  $('#exportTpl').addEventListener('click', function () { exportTemplate(tpl); });
+  $('#delTpl').addEventListener('click', function () { delTemplate(tpl); });
+  $('#uploadCfg').addEventListener('click', function () { openUploadConfig(tpl); });
+
+  drawManifest(tpl);
+  drawOptions(tpl, history, caches);
+  drawSchedule(tpl, history);
+  drawHistory(tpl, history);
+  drawNext(tpl, pinned);
+  drawTplBuilds(tpl);
+}
+function kv(k, v, cls) {
+  return '<div><div class="k">' + k + '</div><div class="v ' + (cls || '') + '">' + (cls === 'mono' ? v : esc(v)) + '</div></div>';
+}
+
+function drawManifest(tpl) {
+  const box = $('#manifestBody');
+  if (!box) return;
+  const ids = (tpl.selection && tpl.selection.length) ? tpl.selection : null;
+  let h = '';
+  if (ids) {
+    h += '<div class="chip-box">' + ids.map(function (id) {
+      const p = pluginById(id);
+      const cat = p ? p.cat : '自定义';
+      return '<span class="chip" style="border-color:' + catFg(cat) + '33"><span class="dot" style="background:' + catFg(cat) + '"></span>' +
+        esc(p ? p.name : id) + (p && p.custom ? ' <small>自定义</small>' : '') + (!p ? ' <small>目录已无</small>' : '') +
+        '<button class="x" data-rmplugin="' + esc(id) + '" title="移除">' + ic('x') + '</button></span>';
+    }).join('') + '</div>';
+    h += '<div class="hint" style="margin-top:10px">移除后会自动重算包清单，点 × 立即保存。要加插件请点右上角「添加」。</div>';
+  } else if ((tpl.packages || []).length) {
+    h += '<div class="hint">这个模板是旧版本创建的，没有记录插件选择。点「编辑机型和插件」重新选一次并保存，就能在这里管理。</div>';
+    h += '<div class="code" style="margin-top:10px;white-space:pre-wrap">' + esc((tpl.packages || []).join(', ')) + '</div>';
+  } else {
+    h += '<div class="hint">还没有插件清单。</div>';
+  }
+  if ((tpl.plugins || []).length) {
+    h += '<div class="src-list"><div class="hint">第三方来源（' + tpl.plugins.length + '）</div>' + tpl.plugins.map(function (p) {
+      const where = p.feed ? p.feed : (p.git_url || '') + (p.sparse ? ' · ' + (p.dirs || []).join(', ') : '');
+      return '<div class="src-row">' + ic('git') + '<code>' + esc(p.name) + '</code><span>' + esc(where) + '</span>' + (p.branch ? '<span class="tag">' + esc(p.branch) + '</span>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  h += '<details class="fold" style="margin-top:12px"><summary>' + ic('right') + '查看将写入的配置行</summary>' +
+    '<pre class="code">' + esc(tplConfigLines(tpl)) + '</pre>' +
+    '<div class="hint">编译时先生成该机型的默认配置，再合并这些行并校验是否全部生效；有没生效的会直接失败并指出是哪几项。</div></details>';
+  box.innerHTML = h;
+  $$('[data-rmplugin]', box).forEach(function (b) {
+    b.addEventListener('click', async function () {
+      if (!tpl.selection) return;
+      const next = tpl.selection.filter(function (x) { return x !== b.dataset.rmplugin; });
+      try {
+        await api.updateTemplate(tpl.id, composeFromSelection(next, tpl));
+        toast('已移除', '包清单已重新计算', 'info');
+        viewDetail(tpl.id);
+      } catch (e) { fail(e, '移除失败'); }
+    });
+  });
+}
+
+function drawOptions(tpl, history, caches) {
+  const box = $('#optBody');
+  if (!box) return;
+  const pin = tpl.pin_dotconfig_version_id || '';
+  box.innerHTML =
+    optRow('编译前进入 menuconfig', '默认不需要。只有要改内核或驱动时才开；定时编译不会进入 menuconfig。',
+      '<label class="switch"><input type="checkbox" id="optMenu"' + (tpl.menuconfig ? ' checked' : '') + '><span class="track"></span></label>') +
+    optRow('配置底稿', '固定后编译直接使用该 .config，不再叠加机型和插件清单。menuconfig 保存的配置不会自动固定，要沿用请在这里选。',
+      '<select class="select" id="optPin"><option value="">不固定（推荐）· 每次按清单生成</option>' +
+      history.map(function (v) {
+        const label = (SOURCE_LABELS[v.source] || v.source) + ' · ' + fmtTime(v.created_at) + (v.label ? ' · ' + v.label : '');
+        return '<option value="' + v.id + '"' + (v.id === pin ? ' selected' : '') + '>固定为：' + esc(label) + '</option>';
+      }).join('') + '</select>') +
+    optRow('编译缓存 ccache', '缓存只存在于编译机上，必须在编译开始前选好；第一次发布缓存的那次编译不会更快。',
+      '<select class="select" id="optCache"><option value="">不使用缓存</option><option value="latest"' + (tpl.cache_use === 'latest' ? ' selected' : '') + '>同平台最新缓存</option>' +
+      (caches || []).map(function (c) {
+        return '<option value="' + c.id + '"' + (tpl.cache_use === c.id ? ' selected' : '') + '>指定：' + esc(fmtTime(c.cache_at) + ' · ' + (c.template_name || '已删除的模板') + ' · ' + fmtSize(c.cache_size)) + '</option>';
+      }).join('') +
+      (tpl.cache_use && tpl.cache_use !== 'latest' && !(caches || []).some(function (c) { return c.id === tpl.cache_use; }) ?
+        '<option value="' + esc(tpl.cache_use) + '" selected>指定的缓存已被清理（不使用）</option>' : '') +
+      '</select>') +
+    optRow('编译完成后发布缓存', '把这次的 ccache 打包发到编译仓库的 Release，下次编同机型可直接复用。最多保留 2 份。',
+      '<label class="switch"><input type="checkbox" id="optPub"' + (tpl.cache_publish ? ' checked' : '') + '><span class="track"></span></label>');
+
+  $('#optMenu').addEventListener('change', async function (e) {
+    try { await api.updateTemplate(tpl.id, { menuconfig: e.target.checked }); toast(e.target.checked ? '编译时将进入 menuconfig' : '编译时不进入 menuconfig', '', 'info'); }
+    catch (err) { fail(err, '保存失败'); e.target.checked = !e.target.checked; }
+  });
+  $('#optPin').addEventListener('change', async function (e) {
+    try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: e.target.value }); toast(e.target.value ? '已固定配置底稿' : '已取消固定'); viewDetail(tpl.id); }
+    catch (err) { fail(err, '保存失败'); }
+  });
+  $('#optCache').addEventListener('change', async function (e) {
+    try { await api.updateTemplate(tpl.id, { cache_use: e.target.value }); toast(e.target.value ? '下次编译将使用缓存' : '下次编译不使用缓存', '', 'info'); }
+    catch (err) { fail(err, '保存失败'); }
+  });
+  $('#optPub').addEventListener('change', async function (e) {
+    try { await api.updateTemplate(tpl.id, { cache_publish: e.target.checked }); toast(e.target.checked ? '编译完成后将发布缓存' : '编译完成后不发布缓存', '', 'info'); }
+    catch (err) { fail(err, '保存失败'); e.target.checked = !e.target.checked; }
+  });
+}
+function optRow(title, desc, control) {
+  return '<div class="opt-row"><div><div class="t">' + title + '</div><div class="d">' + desc + '</div></div><div class="c">' + control + '</div></div>';
+}
+
+function drawSchedule(tpl, history) {
+  const box = $('#schedBody');
+  if (!box) return;
+  const pinned = !!tpl.pin_dotconfig_version_id;
+  box.innerHTML =
+    '<div class="sched-row">' +
+      '<label class="switch"><input type="checkbox" id="schOn"' + (tpl.schedule_enabled ? ' checked' : '') + '><span class="track"></span></label>' +
+      '<span class="sched-label">启用定时编译</span>' +
+      '<input class="input mono" id="schCron" value="' + esc(tpl.schedule_cron || '') + '" placeholder="0 2 * * *" style="max-width:180px" />' +
+      '<button class="btn btn-sm" id="schSave">保存</button>' +
+    '</div>' +
+    '<div class="cron-presets">' + CRON_PRESETS.map(function (p) { return '<button class="cat" data-cron="' + p.cron + '">' + p.label + '</button>'; }).join('') + '</div>' +
+    '<div class="hint">' + (pinned ? '当前固定了配置底稿，定时编译直接使用该版本。' : '当前没有固定底稿，每次定时编译都按机型和插件清单重新生成配置。') +
+    'Cloudflare 免费计划最多 3 个 cron 槽位，实际触发有约 30 秒抖动。</div>';
+  $$('[data-cron]', box).forEach(function (b) { b.addEventListener('click', function () { $('#schCron').value = b.dataset.cron; }); });
+  $('#schSave').addEventListener('click', async function (ev) {
+    const on = $('#schOn').checked, cron = $('#schCron').value.trim();
+    if (on && !cron) { toast('请填写 cron 表达式', '', 'err'); return; }
+    ev.currentTarget.disabled = true;
+    try { await api.setSchedule(tpl.id, { enabled: on, cron: cron || null }); toast('定时设置已保存'); viewDetail(tpl.id); }
+    catch (e) { fail(e, '保存失败'); ev.currentTarget.disabled = false; }
+  });
+}
+
+function drawNext(tpl, pinned) {
+  const box = $('#nextBody');
+  if (!box) return;
+  box.innerHTML =
+    '<div class="next-row"><span class="k">触发方式</span><span class="v">' + (tpl.schedule_enabled ? '手动 / 定时' : '仅手动') + '</span></div>' +
+    '<div class="next-row"><span class="k">配置来源</span><span class="v">' + (pinned ? '固定底稿 ' + fmtTime(pinned.created_at) : '按机型与插件生成') + '</span></div>' +
+    '<div class="next-row"><span class="k">缓存</span><span class="v">' + (!tpl.cache_use ? '不使用' : tpl.cache_use === 'latest' ? '同平台最新' : '指定缓存') + '</span></div>' +
+    '<div class="next-row"><span class="k">发布缓存</span><span class="v">' + (tpl.cache_publish ? '是' : '否') + '</span></div>' +
+    '<div class="next-row"><span class="k">menuconfig</span><span class="v">' + (tpl.menuconfig ? '编译前进入' : '跳过') + '</span></div>' +
+    '<div class="next-note">' + ic('info') + '<span>同一时间只跑一个任务，已有任务在执行时新任务会排队。</span></div>';
+}
+
+function drawTplBuilds(tpl) {
+  const box = $('#tplBuilds');
+  if (!box) return;
+  const list = S.builds.filter(function (b) { return b.template_id === tpl.id; }).slice(0, 5);
+  box.innerHTML = list.length ? list.map(function (b) { return buildCard(b, true); }).join('') : '<div class="basket-empty">这个模板还没有编译过</div>';
+}
+
+function drawHistory(tpl, history) {
+  const box = $('#historyBody');
+  if (!box) return;
+  if (!history.length) {
+    box.innerHTML = '<div class="card-pad"><div class="empty" style="padding:30px 16px"><div class="g">' + ic('list') + '</div>' +
+      '<div class="m">暂无 .config 版本</div><div class="s">编译时进 menuconfig 保存退出，或手动上传一份</div></div></div>';
+    return;
+  }
+  const rows = history.map(function (v, i) {
+    const isCur = tpl.dotconfig_version_id === v.id;
+    const isPin = tpl.pin_dotconfig_version_id === v.id;
+    return '<tr data-vid="' + v.id + '">' +
+      '<td class="mono dim">' + (history.length - i) + '</td>' +
+      '<td><span class="tag">' + esc(SOURCE_LABELS[v.source] || v.source) + '</span></td>' +
+      '<td class="mono dim" style="white-space:nowrap">' + fmtTime(v.created_at) + '</td>' +
+      '<td><div class="label-cell"><span class="label-text">' + esc(v.label || '—') + '</span><button class="icon-btn" data-vact="label" title="编辑备注">' + ic('edit') + '</button></div></td>' +
+      '<td>' + (isCur ? '<span class="ref-tag">当前</span>' : '') + (isPin ? '<span class="ref-tag sched">固定</span>' : '') + '</td>' +
+      '<td><div class="row-ops">' +
+        '<button class="lnk" data-vact="view">查看</button>' +
+        (isCur ? '' : '<button class="lnk" data-vact="current">设为当前</button>') +
+        (isPin ? '<button class="lnk" data-vact="unpin">取消固定</button>' : '<button class="lnk" data-vact="pin">固定底稿</button>') +
+        '<button class="lnk danger" data-vact="del"' + (!isCur && !isPin ? '' : ' disabled title="请先取消引用"') + '>删除</button>' +
+      '</div></td></tr>';
+  }).join('');
+  box.innerHTML = '<div style="overflow-x:auto"><table class="vtable"><thead><tr><th>#</th><th>来源</th><th>时间</th><th>备注</th><th>引用</th><th style="text-align:right">操作</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  $$('tr[data-vid]', box).forEach(function (row) {
+    const vid = row.dataset.vid;
+    const meta = history.filter(function (h) { return h.id === vid; })[0];
+    $$('[data-vact]', row).forEach(function (btn) {
+      if (btn.disabled) return;
+      btn.addEventListener('click', async function () {
+        const act = btn.dataset.vact;
+        if (act === 'view') return openVersionView(tpl.id, vid, meta);
+        if (act === 'download') return downloadVersion(tpl.id, vid);
+        if (act === 'label') return editLabel(tpl.id, vid, row, meta);
+        if (act === 'current') { try { await api.setCurrentDotconfig(tpl.id, vid); toast('已设为当前版本'); viewDetail(tpl.id); } catch (e) { fail(e, '设置失败'); } return; }
+        if (act === 'pin') { try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: vid }); toast('已固定为配置底稿'); viewDetail(tpl.id); } catch (e) { fail(e, '设置失败'); } return; }
+        if (act === 'unpin') { try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: '' }); toast('已取消固定'); viewDetail(tpl.id); } catch (e) { fail(e, '设置失败'); } return; }
+        if (act === 'del') {
+          const ok = await confirmBox({ title: '删除版本', body: '确定删除这份 .config 历史版本？此操作不可恢复。', ok: '删除', danger: true });
+          if (!ok) return;
+          try { await api.deleteVersion(tpl.id, vid); toast('版本已删除'); viewDetail(tpl.id); } catch (e) { fail(e, '删除失败'); }
         }
-        sel.value = tpl.cache_use;
-      }
-    }).catch(() => {});
-    sel.addEventListener('change', async (e) => {
-      try { await api.updateTemplate(tpl.id, { cache_use: e.target.value }); toast(e.target.value ? '下次编译将使用缓存' : '下次编译不使用缓存', 'success'); }
-      catch (err) { reportApiError(err, '保存失败'); }
+      });
     });
-    qs(box, '#opt-cache-pub').addEventListener('change', async (e) => {
-      try { await api.updateTemplate(tpl.id, { cache_publish: e.target.checked }); toast(e.target.checked ? '编译完成后将发布缓存' : '编译完成后不发布缓存', 'success'); }
-      catch (err) { reportApiError(err, '保存失败'); e.target.checked = !e.target.checked; }
-    });
-  }
-  
-  async function exportTemplate(tpl) {
+  });
+}
+
+function openVersionView(tplId, vid, meta) {
+  openModal('<div class="modal" style="max-width:720px"><div class="modal-head"><h3>.config 内容' + (meta && meta.label ? ' · ' + esc(meta.label) : '') + '</h3>' +
+    '<button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body"><pre class="code" id="verBody" style="max-height:56vh">读取中…</pre></div>' +
+    '<div class="modal-foot"><button class="btn" data-close>关闭</button><button class="btn btn-primary" id="verDl">' + ic('download') + '下载</button></div></div>', {
+    onMount: function (root) {
+      api.historyVersion(tplId, vid).then(function (r) { $('#verBody', root).textContent = r.version.content; })
+        .catch(function (e) { $('#verBody', root).textContent = '读取失败：' + e.message; });
+      $('#verDl', root).addEventListener('click', function () { downloadVersion(tplId, vid); });
+    },
+  });
+}
+async function downloadVersion(tplId, vid) {
+  try {
+    const r = await api.historyVersion(tplId, vid);
+    downloadBlob(new Blob([r.version.content], { type: 'text/plain' }), '.config');
+  } catch (e) { fail(e, '下载失败'); }
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function editLabel(tplId, vid, row, meta) {
+  const cell = $('.label-cell', row);
+  if (!cell) return;
+  cell.innerHTML = '<input class="input" style="padding:3px 7px;font-size:12px" value="' + esc(meta && meta.label ? meta.label : '') + '" />' +
+    '<button class="btn btn-sm" data-save>保存</button>';
+  const input = $('input', cell);
+  input.focus();
+  const save = async function () {
+    try { await api.patchLabel(tplId, vid, input.value.trim()); toast('备注已更新'); viewDetail(tplId); }
+    catch (e) { fail(e, '保存失败'); }
+  };
+  $('[data-save]', cell).addEventListener('click', save);
+  input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') save(); });
+}
+
+function openUploadConfig(tpl) {
+  openModal('<div class="modal" style="max-width:640px"><div class="modal-head"><h3>上传 .config 版本</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="field"><label>选择文件（也可以直接粘贴到下面）</label><input type="file" id="cfgFile" accept=".config,text/plain" /></div>' +
+      '<div class="field"><label>.config 内容</label><textarea class="input mono" id="cfgText" rows="12" placeholder="CONFIG_TARGET_xxx=y"></textarea></div>' +
+      '<div class="field"><label>备注（可选）</label><input class="input" id="cfgLabel" placeholder="例如：稳定版" /></div>' +
+    '</div><div class="modal-foot"><button data-close>取消</button><button class="btn btn-primary" id="cfgUp">上传</button></div></div>', {
+    onMount: function (root) {
+      $('#cfgFile', root).addEventListener('change', async function (ev) {
+        const f = ev.target.files[0];
+        if (f) $('#cfgText', root).value = await f.text();
+      });
+      $('#cfgUp', root).addEventListener('click', async function (ev) {
+        const content = $('#cfgText', root).value;
+        if (!content.trim()) { toast('内容不能为空', '', 'err'); return; }
+        ev.currentTarget.disabled = true;
+        try {
+          await api.uploadDotconfig(tpl.id, { content: content, label: $('#cfgLabel', root).value.trim() || undefined });
+          toast('上传成功');
+          closeModal(root);
+          viewDetail(tpl.id);
+        } catch (e) { fail(e, '上传失败'); ev.currentTarget.disabled = false; }
+      });
+    },
+  });
+}
+
+function openInfoModal(tpl) {
+  openModal('<div class="modal" style="max-width:600px"><div class="modal-head"><h3>名称与自定义脚本</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="field"><label>模板名称</label><input class="input" id="nmInput" maxlength="80" value="' + esc(tpl.name) + '" /></div>' +
+      '<div class="field"><label>自定义脚本① · feeds update 之前</label><textarea class="input mono" id="sc1" rows="5" placeholder="#!/bin/bash">' + esc(tpl.diy_script_1 || '') + '</textarea></div>' +
+      '<div class="field"><label>自定义脚本② · feeds install 之后</label><textarea class="input mono" id="sc2" rows="5" placeholder="#!/bin/bash">' + esc(tpl.diy_script_2 || '') + '</textarea></div>' +
+      '<div class="hint">机型和插件请用「编辑机型和插件」回到商店修改。</div>' +
+    '</div><div class="modal-foot"><button data-close>取消</button><button class="btn btn-primary" id="nmSave">保存更改</button></div></div>', {
+    onMount: function (root) {
+      $('#nmSave', root).addEventListener('click', async function (ev) {
+        const name = $('#nmInput', root).value.trim();
+        if (!name) { toast('请填写模板名称', '', 'err'); return; }
+        ev.currentTarget.disabled = true;
+        try {
+          await api.updateTemplate(tpl.id, { name: name, diy_script_1: $('#sc1', root).value, diy_script_2: $('#sc2', root).value });
+          toast('模板已更新');
+          closeModal(root);
+          viewDetail(tpl.id);
+        } catch (e) { fail(e, '保存失败'); ev.currentTarget.disabled = false; }
+      });
+    },
+  });
+}
+
+async function exportTemplate(tpl) {
+  try {
+    const resp = await fetch('/api/templates/' + tpl.id + '/export', { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('导出失败 (' + resp.status + ')');
+    downloadBlob(await resp.blob(), tpl.name + '.openwrt-template.json');
+    toast('已导出模板文件');
+  } catch (e) { fail(e, '导出失败'); }
+}
+async function delTemplate(tpl) {
+  const ok = await confirmBox({ title: '删除模板', body: '确定删除「' + tpl.name + '」？关联的 .config 历史版本会一并删除，无法恢复。', ok: '删除', danger: true });
+  if (!ok) return;
+  try { await api.deleteTemplate(tpl.id); toast('模板已删除'); nav('#/templates'); }
+  catch (e) { fail(e, '删除失败'); }
+}
+
+function openImportModal() {
+  openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><h3>导入模板</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body"><div class="field"><label>选择 .openwrt-template.json</label><input type="file" id="impFile" accept=".json,application/json" /></div>' +
+    '<div class="hint">导入会新建一个模板；与现有模板重名时自动加「(导入)」后缀。</div><div class="auth-err" id="impErr" hidden></div></div>' +
+    '<div class="modal-foot"><button data-close>取消</button><button class="btn btn-primary" id="impGo" disabled>导入</button></div></div>', {
+    onMount: function (root) {
+      let parsed = null;
+      const err = $('#impErr', root), go = $('#impGo', root);
+      $('#impFile', root).addEventListener('change', async function (ev) {
+        err.hidden = true; go.disabled = true; parsed = null;
+        const f = ev.target.files[0];
+        if (!f) return;
+        try {
+          parsed = JSON.parse(await f.text());
+          if (parsed.export_version !== 1) throw new Error('不支持的 export_version: ' + parsed.export_version);
+          go.disabled = false;
+        } catch (e) { err.textContent = '文件解析失败：' + e.message; err.hidden = false; }
+      });
+      go.addEventListener('click', async function () {
+        if (!parsed) return;
+        go.disabled = true; go.textContent = '导入中…';
+        try {
+          const r = await api.importTemplate(parsed);
+          toast('模板导入成功');
+          closeModal(root);
+          nav('#/template/' + r.template.id);
+        } catch (e) { err.textContent = e.message || '导入失败'; err.hidden = false; go.disabled = false; go.textContent = '导入'; }
+      });
+    },
+  });
+}
+
+/* ---------------- 编译记录操作（全局委托） ---------------- */
+document.addEventListener('click', async function (ev) {
+  const el = ev.target.closest ? ev.target.closest('[data-bact]') : null;
+  if (!el) return;
+  const id = el.dataset.id;
+  const act = el.dataset.bact;
+  if (act === 'cancel') {
+    const ok = await confirmBox({ title: '取消编译', body: '取消后这次任务会标记为已取消，已经跑起来的 GitHub Actions 任务会一并取消。', ok: '取消任务', danger: true });
+    if (!ok) return;
     try {
-      const resp = await fetch(\`/api/templates/\${tpl.id}/export\`, { credentials: 'same-origin' });
-      if (!resp.ok) throw new Error(\`导出失败 (\${resp.status})\`);
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = \`\${tpl.name}.openwrt-template.json\`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast('已导出模板文件', 'success');
-    } catch (e) { reportApiError(e, '导出失败'); }
+      const r = await api.cancel(id);
+      if (r.github_cancel_warning) toast('已在本系统标记为取消', r.github_cancel_warning, 'err');
+      else toast('已取消');
+      await refreshBuilds();
+      rerenderCurrent();
+    } catch (e) { fail(e, '取消失败'); }
+    return;
   }
-  
-  function confirmDeleteTemplate(tpl) {
-    const overlay = openModal(\`
-    <div class="modal-box" style="max-width:420px;">
-      <div class="modal-head"><h3>删除模板</h3><button class="ghost small" data-close>✕</button></div>
-      <div class="modal-body">
-        <p>确定删除模板「\${escapeHtml(tpl.name)}」？关联的所有 .config 历史版本也会被一并删除，此操作不可恢复。</p>
-      </div>
-      <div class="modal-foot">
-        <button data-close>取消</button>
-        <button class="danger" id="confirm-del-btn">确定删除</button>
-      </div>
-    </div>\`, {
-      onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        qs(root, '#confirm-del-btn').addEventListener('click', async () => {
-          try {
-            await api.deleteTemplate(tpl.id);
-            toast('模板已删除', 'success');
-            closeModal(root);
-            navigate('#/templates');
-          } catch (e) { reportApiError(e, '删除失败'); }
-        });
-      }
+  if (act === 'pub') {
+    el.disabled = true;
+    try {
+      await api.setCachePublish(id, el.dataset.on !== '1');
+      toast(el.dataset.on === '1' ? '已取消发布缓存' : '编译完成后将发布缓存');
+      await refreshBuilds();
+      rerenderCurrent();
+    } catch (e) { fail(e, '设置失败'); el.disabled = false; }
+    return;
+  }
+  if (act === 'cfg') {
+    const kind = el.dataset.kind;
+    openModal('<div class="modal" style="max-width:720px"><div class="modal-head"><h3>' + (kind === 'result' ? '最终配置（menuconfig 保存退出时推送）' : '触发时的配置底稿') + '</h3>' +
+      '<button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+      '<div class="modal-body"><pre class="code" id="bcfg" style="max-height:56vh">读取中…</pre></div>' +
+      '<div class="modal-foot"><button class="btn" data-close>关闭</button></div></div>', {
+      onMount: function (root) {
+        api.build(id).then(function (r) {
+          const text = kind === 'result' ? r.build.dotconfig_result : r.build.dotconfig_snapshot;
+          $('#bcfg', root).textContent = text || '（这次编译没有记录配置）';
+        }).catch(function (e) { $('#bcfg', root).textContent = '读取失败：' + e.message; });
+      },
     });
   }
-  
-  function renderVersionHistory(tpl, history) {
-    const wrap = document.getElementById('version-history-area');
-    if (!history.length) {
-      wrap.innerHTML = \`
-      <div class="empty-state">
-        <div class="msg">暂无 .config 版本</div>
-        <div class="sub">上传一份 .config，或先触发一次手动编译并在 menuconfig 中保存退出</div>
-      </div>\`;
+});
+
+/* ============================================================
+   插件商店 / 编译记录 / 设置 / 启动
+   ============================================================ */
+
+/* ---------------- 目录 ---------------- */
+async function ensureCatalog(force) {
+  if (S.loaded && !force) return;
+  applyCatalog(await api.catalog(force));
+}
+function applyCatalog(d) {
+  S.catalog = (d.plugins || []).filter(function (p) { return !p.hidden; });
+  S.kw = {};
+  (d.categories || []).forEach(function (c) { S.kw[c.id] = c.keywords || ''; });
+  S.cats = ['全部'].concat((d.categories || []).slice().sort(function (a, b) { return a.order - b.order; }).map(function (c) { return c.id; })
+    .filter(function (c) { return S.catalog.some(function (p) { return p.cat === c; }); }));
+  S.stale.forEach(function (p) {
+    if (!pluginById(p.id)) S.catalog.push(p);
+    if (S.cats.indexOf(p.cat) < 0) S.cats.push(p.cat);
+  });
+  S.meta = '目录更新于 ' + (d.updated || '未知') + ' · ' + (d.source === 'remote' ? '来自仓库 catalog.json' : '内置目录') + ' · ' + S.catalog.length + ' 个插件';
+  S.loaded = true;
+}
+function synthPlugin(id, plugins) {
+  let origin = { type: 'builtin' };
+  (plugins || []).forEach(function (p) {
+    if (p.feed) return;
+    const dirs = p.dirs || [];
+    if (p.sparse && dirs.some(function (d) { return d.split('/').pop() === id; })) {
+      origin = { type: 'git', name: id, url: p.git_url, branch: p.branch || '', sparse: true, dirs: dirs.filter(function (d) { return d.split('/').pop() === id; }) };
+    } else if (!p.sparse && p.name === id) {
+      origin = { type: 'git', name: id, url: p.git_url, branch: p.branch || '', sparse: false, dirs: [] };
+    }
+  });
+  return {
+    id: id, name: id, desc: origin.type === 'builtin' ? '目录里已经没有这一项，仍会按包名尝试启用。' : '模板里保存的第三方插件，不在当前目录里。',
+    cat: '自定义', kind: 'app', origin: origin, deps: [], requires: [], size_mb: null, rec: false, tut: '', tags: [], hidden: false,
+    custom: origin.type !== 'builtin', stale: true,
+  };
+}
+function pluginOrigin(p) {
+  const o = p.origin || { type: 'builtin' };
+  if (o.type === 'git') return { name: o.name, git_url: o.url, sparse: !!o.sparse, branch: o.branch || '', dirs: o.dirs || [] };
+  if (o.type === 'feed') return { name: o.name, feed: o.line };
+  return null;
+}
+function mergePlugins(list) {
+  const out = [], idx = {};
+  list.forEach(function (p) {
+    const o = pluginOrigin(p);
+    if (!o) return;
+    if (o.feed) { if (!idx['f|' + o.feed]) { idx['f|' + o.feed] = o; out.push(o); } return; }
+    if (o.sparse) {
+      const k = 's|' + o.git_url + '|' + o.branch;
+      if (idx[k]) o.dirs.forEach(function (d) { if (idx[k].dirs.indexOf(d) < 0) idx[k].dirs.push(d); });
+      else { o.dirs = o.dirs.slice(); idx[k] = o; out.push(o); }
       return;
     }
-    const rows = history.map((v, idx) => {
-      const isCurrent = tpl.dotconfig_version_id === v.id;
-      const isSched = tpl.pin_dotconfig_version_id === v.id;
-      const refTags = \`\${isCurrent ? '<span class="ref-tag">当前</span>' : ''}\${isSched ? '<span class="ref-tag sched">固定</span>' : ''}\`;
-      const canDelete = !isCurrent && !isSched;
-      return \`
-      <tr data-vid="\${v.id}">
-        <td>\${history.length - idx}</td>
-        <td class="source-tag">\${SOURCE_LABELS[v.source] || v.source}</td>
-        <td class="mono" style="font-size:12px;color:var(--text-faint);">\${fmtTime(v.created_at)}</td>
-        <td>
-          <div class="label-cell">
-            <span class="label-text" data-label-text>\${escapeHtml(v.label || '—')}</span>
-            <button class="ghost small label-edit-btn" data-edit-label title="编辑备注">✎</button>
-          </div>
-        </td>
-        <td>\${refTags || ''}</td>
-        <td>
-          <div class="ops">
-            <button class="ghost small" data-view>查看</button>
-            <button class="ghost small" data-download>下载</button>
-            \${isCurrent ? '' : '<button class="small" data-set-current>设为当前</button>'}
-            \${isSched ? '<button class="small" data-unpin>取消固定</button>' : '<button class="small" data-set-sched>固定为底稿</button>'}
-            <button class="ghost small danger" data-delete \${canDelete ? '' : 'disabled title="请先切换或取消引用再删除"'}>删除</button>
-          </div>
-        </td>
-      </tr>\`;
-    }).join('');
-    wrap.innerHTML = \`
-    <div style="overflow-x:auto;">
-      <table class="version-table">
-        <thead>
-          <tr><th>#</th><th>来源</th><th>时间</th><th>备注</th><th>引用</th><th style="text-align:right;">操作</th></tr>
-        </thead>
-        <tbody>\${rows}</tbody>
-      </table>
-    </div>\`;
-    qsa(wrap, 'tr[data-vid]').forEach((row) => {
-      const vid = row.dataset.vid;
-      const versionMeta = history.find((h) => h.id === vid);
-      qs(row, '[data-view]').addEventListener('click', () => viewVersionContent(tpl.id, vid, versionMeta));
-      qs(row, '[data-download]').addEventListener('click', () => downloadVersionContent(tpl.id, vid));
-      qs(row, '[data-edit-label]').addEventListener('click', () => editVersionLabel(tpl.id, vid, row, versionMeta));
-      const setCurBtn = qs(row, '[data-set-current]');
-      if (setCurBtn) setCurBtn.addEventListener('click', async () => {
-        try { await api.setCurrentDotconfig(tpl.id, vid); toast('已设为当前版本', 'success'); refreshTemplateDetail(tpl.id); } catch (e) { reportApiError(e, '设置失败'); }
-      });
-      const setSchedBtn = qs(row, '[data-set-sched]');
-      if (setSchedBtn) setSchedBtn.addEventListener('click', async () => {
-        try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: vid }); toast('已固定为配置底稿', 'success'); refreshTemplateDetail(tpl.id); } catch (e) { reportApiError(e, '设置失败'); }
-      });
-      const unpinBtn = qs(row, '[data-unpin]');
-      if (unpinBtn) unpinBtn.addEventListener('click', async () => {
-        try { await api.updateTemplate(tpl.id, { pin_dotconfig_version_id: '' }); toast('已取消固定', 'success'); refreshTemplateDetail(tpl.id); } catch (e) { reportApiError(e, '设置失败'); }
-      });
-      const delBtn = qs(row, '[data-delete]');
-      if (delBtn && !delBtn.disabled) delBtn.addEventListener('click', () => confirmDeleteVersion(tpl.id, vid));
-    });
+    if (!idx['g|' + o.git_url + '|' + o.name]) { idx['g|' + o.git_url + '|' + o.name] = o; out.push(o); }
+  });
+  return out;
+}
+function selectedPlugins() {
+  return Array.from(S.sel).map(function (id) { return pluginById(id); }).filter(Boolean);
+}
+function projectNow() { return S.projects[S.pi] || S.projects[0]; }
+function targetStr() { return S.target && S.sub ? S.target + '/' + S.sub : ''; }
+function subsNow() { return S.cur.id === S.target ? S.cur.subs : []; }
+function curSub() { return subsNow().filter(function (x) { return x.id === S.sub; })[0]; }
+function devicesNow() { const x = curSub(); return x ? x.devices : []; }
+
+function storeReset() {
+  S.sel = new Set();
+  S.target = 'x86'; S.sub = '64'; S.profile = 'generic'; S.devQ = '';
+  S.editId = null; S.tplName = ''; S.nameDirty = false; S.stale = [];
+  S.q = ''; S.cat = '全部'; S.only = false; S.limit = 48;
+}
+async function enterEdit(id) {
+  const t = (await api.template(id)).template;
+  storeReset();
+  S.editId = t.id; S.tplName = t.name; S.nameDirty = true;
+  let i = S.projects.findIndex(function (p) { return t.project_id && p.id === t.project_id; });
+  if (i < 0) i = S.projects.findIndex(function (p) { return p.repo_url === t.repo_url && p.branch === t.branch; });
+  if (i < 0) {
+    toast('这个模板用的源码项目已不在列表里', '请重新选择源码、平台和机型', 'err');
+    S.target = ''; S.sub = ''; S.profile = '';
+  } else {
+    S.pi = i;
+    const tp = String(t.target || '').split('/');
+    S.target = tp[0] || ''; S.sub = tp[1] || ''; S.profile = t.profile || '';
   }
-  
-  async function refreshTemplateDetail(tplId) {
-    try {
-      const [{ template }, { history }] = await Promise.all([api.getTemplate(tplId), api.listHistory(tplId)]);
-      renderTemplateDetailBody(template, history);
-    } catch (e) { reportApiError(e, '刷新失败'); }
-  }
-  
-  async function viewVersionContent(tplId, vid, meta) {
-    const overlay = openModal(\`
-    <div class="modal-box" style="max-width:700px;">
-      <div class="modal-head"><h3>.config 内容\${meta?.label ? ' — ' + escapeHtml(meta.label) : ''}</h3><button class="ghost small" data-close>✕</button></div>
-      <div class="modal-body"><div class="code-view" id="cfg-view">加载中...</div></div>
-      <div class="modal-foot"><button data-close>关闭</button></div>
-    </div>\`, {
-      async onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        try {
-          const { version } = await api.getHistoryVersion(tplId, vid);
-          qs(root, '#cfg-view').textContent = version.content;
-        } catch (e) { qs(root, '#cfg-view').textContent = \`加载失败：\${e.message}\`; }
-      }
-    });
-    return overlay;
-  }
-  
-  function fmtCacheSize(n) {
-    n = Number(n) || 0;
-    return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1048576)) + ' MB';
-  }
-  
-  function renderCacheNote(b) {
-    let h = '';
-    if (b.cache_from) h += '<span class="badge dim">使用缓存</span>';
-    if (b.cache_tag) h += '<span class="badge dim">已发布缓存 ' + fmtCacheSize(b.cache_size) + '</span>';
-    if (ACTIVE_BUILD_STATUSES.includes(b.status) && b.use_ccache) {
-      h += '<button class="ghost small cache-pub-btn" data-on="' + (b.cache_publish ? '1' : '0') + '" title="缓存只存在于编译机上，必须在编译结束前设置">' + (b.cache_publish ? '✓ 完成后发布缓存（点击取消）' : '完成后发布缓存') + '</button>';
+  const ids = (t.selection && t.selection.length) ? t.selection : (t.packages || []).filter(function (x) { return !!pluginById(x); });
+  S.sel = new Set(ids);
+  ids.forEach(function (x) {
+    if (!pluginById(x)) {
+      const p = synthPlugin(x, t.plugins);
+      S.stale.push(p); S.catalog.push(p);
+      if (S.cats.indexOf(p.cat) < 0) S.cats.push(p.cat);
     }
-    return h;
+  });
+}
+
+/* ---------------- 商店页 ---------------- */
+async function viewStore(tplId) {
+  const view = $('#view');
+  view.innerHTML = '<div class="loading">' + ic('refresh') + '<span>读取插件目录…</span></div>';
+  try {
+    await ensureCatalog(false);
+    const pj = await api.projects();
+    S.projects = pj.projects || [];
+    if (S.pi >= S.projects.length) S.pi = 0;
+    if (tplId) { if (S.editId !== tplId) await enterEdit(tplId); }
+    else if (S.editId) storeReset();
+  } catch (e) {
+    view.innerHTML = '<div class="empty"><div class="g">' + ic('alert') + '</div><div class="m">加载失败</div><div class="s">' + esc(e.message) + '</div></div>';
+    return;
   }
-  
-  function renderBuildNote(b) {
-    const failed = b.status === 'failed';
-    let html = '';
-    if (failed && b.fail_reason) html += '<div class="hint" style="width:100%;color:var(--bad);">失败原因：' + escapeHtml(b.fail_reason) + '</div>';
-    const detail = [failed ? '' : b.fail_reason, b.log_tail].filter(Boolean).join('\\n');
-    if (detail) html += '<details style="width:100%"><summary class="hint">' + (failed ? '失败详情和处理建议' : '构建说明') + '</summary><pre class="fail-log">' + escapeHtml(detail) + '</pre></details>';
-    return html;
-  }
-  
-  async function viewBuildConfig(buildId, kind) {
-    const title = kind === 'result' ? '最终配置（menuconfig 保存退出时推送的内容）' : '触发时的配置底稿（固定版本的内容）';
-    return openModal('<div class="modal-box" style="max-width:700px;"><div class="modal-head"><h3>' + title + '</h3><button class="ghost small" data-close>✕</button></div><div class="modal-body"><div class="code-view" id="cfg-view">加载中...</div></div><div class="modal-foot"><button data-close>关闭</button></div></div>', {
-      async onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        try {
-          const { build } = await api.getBuild(buildId);
-          const text = kind === 'result' ? build.dotconfig_result : build.dotconfig_snapshot;
-          qs(root, '#cfg-view').textContent = text || '（没有记录）';
-        } catch (e) { qs(root, '#cfg-view').textContent = '加载失败：' + e.message; }
-      }
-    });
-  }
-  
-  async function downloadVersionContent(tplId, vid) {
+  if (S.route.name !== 'store') return;
+
+  const editing = !!S.editId;
+  view.innerHTML =
+    '<header class="page-head"><div>' +
+      (editing ? '<div class="crumbs" style="margin-bottom:8px"><a href="#/template/' + S.editId + '">' + ic('right') + '返回模板</a></div>' : '') +
+      '<div class="eyebrow">STORE <b>/</b> ' + (editing ? 'EDIT' : 'SELECT') + '</div>' +
+      '<h1>' + (editing ? '编辑机型和插件' : '插件商店') + '</h1>' +
+      '<div class="sub">' + (editing ? '改完点右侧「保存到模板」，回到模板页确认后再编译。' : '先定源码和机型，再勾选要编进固件的插件。清单里没有的，可以直接贴 GitHub 地址加进来。') + '</div>' +
+    '</div><div class="actions">' +
+      '<button class="btn btn-ghost" id="stRefresh">' + ic('refresh') + '刷新目录</button>' +
+      '<span class="tag" id="stMeta">' + esc(S.meta) + '</span>' +
+    '</div></header>' +
+    '<div class="steps fade-up">' +
+      '<div class="step" id="step1"><span class="n">1</span>选择机型</div><span class="step-line"></span>' +
+      '<div class="step" id="step2"><span class="n">2</span>勾选插件</div><span class="step-line"></span>' +
+      '<div class="step" id="step3"><span class="n">3</span>确认并生成</div>' +
+    '</div>' +
+    '<div class="store-top">' +
+      '<div class="field"><label>源码项目</label><select class="select" id="stSrc"></select></div>' +
+      '<div class="field"><label>平台</label><select class="select" id="stTgt"></select></div>' +
+      '<div class="field"><label>子平台</label><select class="select" id="stSub"></select></div>' +
+      '<div class="field"><label>机型</label><select class="select" id="stDev"></select>' +
+        '<input class="input" id="stDevQ" type="search" autocomplete="off" placeholder="筛选机型，如 RAX3000M" style="margin-top:6px" /></div>' +
+    '</div>' +
+    '<div class="hint st-hint" id="stHint"></div>' +
+    '<div class="store-layout">' +
+      '<section>' +
+        '<div class="filter-bar">' +
+          '<div class="search">' + ic('search') + '<input class="input" id="stQ" type="search" placeholder="搜索插件名称、包名或说明…" value="' + esc(S.q) + '" /></div>' +
+          '<button class="btn" id="stCustom">' + ic('plus') + '自定义插件</button>' +
+          '<button class="btn btn-ghost" id="stOnly">' + ic('filter') + '只看已选</button>' +
+        '</div>' +
+        '<div class="cats" id="stCats"></div>' +
+        '<div class="plugins stagger" id="stGrid"></div>' +
+        '<div style="text-align:center;margin:14px" id="stMore"></div>' +
+      '</section>' +
+      '<aside class="basket"><div class="card basket-inner" id="stBasket"></div></aside>' +
+    '</div>';
+
+  $('#stRefresh').addEventListener('click', async function (ev) {
+    ev.currentTarget.disabled = true;
     try {
-      const { version } = await api.getHistoryVersion(tplId, vid);
-      const blob = new Blob([version.content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '.config';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) { reportApiError(e, '下载失败'); }
+      S.loaded = false;
+      await ensureCatalog(true);
+      $('#stMeta').textContent = S.meta;
+      drawCats(); drawGrid(); drawBasket();
+      toast('目录已刷新');
+    } catch (e) { fail(e, '刷新失败'); }
+    ev.currentTarget.disabled = false;
+  });
+  $('#stCustom').addEventListener('click', customPluginModal);
+  $('#stOnly').addEventListener('click', function () { S.only = !S.only; S.limit = 48; drawCats(); drawGrid(); });
+  $('#stQ').addEventListener('input', function (ev) { S.q = ev.target.value.trim().toLowerCase(); S.limit = 48; drawGrid(); });
+  $('#stDevQ').addEventListener('input', function (ev) { S.devQ = ev.target.value; drawSelects(); });
+  $('#stSrc').addEventListener('change', function (ev) {
+    if (ev.target.value === 'new') { ev.target.value = String(S.pi); projectModal(); return; }
+    S.pi = +ev.target.value;
+    loadPlatforms(false);
+  });
+  $('#stTgt').addEventListener('change', function (ev) {
+    S.target = ev.target.value; S.sub = ''; S.profile = ''; S.devQ = '';
+    $('#stDevQ').value = '';
+    if (S.target) loadPlatform(S.target, false);
+    else { S.cur = { id: '', subs: [], status: 'none', err: '', fetched: '' }; drawSelects(); drawHint(); drawBasket(); }
+  });
+  $('#stSub').addEventListener('change', function (ev) {
+    S.sub = ev.target.value; S.profile = ''; S.devQ = '';
+    $('#stDevQ').value = '';
+    drawSelects(); drawBasket();
+  });
+  $('#stDev').addEventListener('change', function (ev) { S.profile = ev.target.value; drawSelects(); drawBasket(); });
+
+  drawProjects();
+  drawSelects(); drawHint(); drawCats(); drawGrid(); drawBasket();
+  loadPlatforms(false);
+}
+
+function drawProjects() {
+  const sel = $('#stSrc');
+  if (!sel) return;
+  sel.innerHTML = S.projects.map(function (p, i) {
+    return '<option value="' + i + '"' + (i === S.pi ? ' selected' : '') + '>' + esc((p.builtin ? '' : '★ ') + p.name + ' · ' + p.branch) + '</option>';
+  }).join('') + '<option value="new">＋ 添加 / 管理自定义项目…</option>';
+}
+async function loadPlatforms(force) {
+  const p = projectNow(), seq = ++S.seq;
+  if (!p) return;
+  S.plat = { status: 'loading', list: [], err: '', fetched: '' };
+  S.cur = { id: '', subs: [], status: 'none', err: '', fetched: '' };
+  drawSelects(); drawHint();
+  try {
+    const d = await api.platforms(p.id, force);
+    if (seq !== S.seq) return;
+    S.plat = { status: 'ready', list: d.platforms || [], err: '', fetched: d.fetched_at || '' };
+  } catch (e) {
+    if (seq !== S.seq) return;
+    S.plat = { status: 'error', list: [], err: e.message || '读取失败', fetched: '' };
   }
-  
-  function editVersionLabel(tplId, vid, row, meta) {
-    const cell = qs(row, '[data-edit-label]').closest('.label-cell');
-    const current = meta?.label || '';
-    cell.innerHTML = \`
-    <input type="text" class="label-input" value="\${escapeHtml(current)}" style="font-size:12.5px;padding:4px 8px;" />
-    <button class="ghost small" data-save-label>保存</button>\`;
-    const input = qs(cell, '.label-input');
-    input.focus();
-    const save = async () => {
-      try { await api.patchLabel(tplId, vid, input.value.trim()); toast('备注已更新', 'success'); refreshTemplateDetail(tplId); } catch (e) { reportApiError(e, '更新失败'); }
+  if (S.plat.status === 'ready' && !S.plat.list.some(function (x) { return x.id === S.target; })) { S.target = ''; S.sub = ''; S.profile = ''; }
+  drawSelects(); drawHint(); drawBasket();
+  if (S.plat.status === 'ready' && S.target) loadPlatform(S.target, force);
+}
+async function loadPlatform(t, force) {
+  const p = projectNow(), seq = ++S.seq;
+  if (!p) return;
+  S.cur = { id: t, subs: [], status: 'loading', err: '', fetched: '' };
+  drawSelects(); drawHint();
+  try {
+    const d = await api.platform(p.id, t, force);
+    if (seq !== S.seq) return;
+    S.cur = { id: t, subs: d.subtargets || [], status: 'ready', err: '', fetched: d.fetched_at || '' };
+    if (!S.sub) {
+      const pick = (d.subtargets || []).filter(function (x) { return x.id === '64'; })[0] || (d.subtargets || [])[0];
+      if (pick) {
+        S.sub = pick.id; S.profile = '';
+        const g = (pick.devices || []).filter(function (x) { return x.id === 'generic'; })[0];
+        if (g) S.profile = g.id;
+      }
+    } else if (!curSub()) {
+      toast('原来的子平台在当前源码里找不到', '请重新选择子平台和机型', 'err');
+      S.sub = ''; S.profile = '';
+    }
+  } catch (e) {
+    if (seq !== S.seq) return;
+    S.cur = { id: t, subs: [], status: 'error', err: e.message || '读取失败', fetched: '' };
+  }
+  drawSelects(); drawHint(); drawBasket();
+}
+function opt(v, label, on) {
+  return '<option value="' + esc(v) + '"' + (on ? ' selected' : '') + '>' + esc(label) + '</option>';
+}
+function drawSelects() {
+  const a = $('#stTgt'), b = $('#stSub'), c = $('#stDev');
+  if (!a || !b || !c) return;
+  let h;
+  if (S.plat.status === 'loading') h = opt('', '读取平台中…', true);
+  else if (S.plat.status === 'error') h = opt('', '读取失败，点下方重试', true);
+  else h = opt('', '— 请选择平台 —', !S.target) + S.plat.list.map(function (t) { return opt(t.id, t.id, t.id === S.target); }).join('');
+  a.innerHTML = h; a.disabled = S.plat.status !== 'ready';
+
+  const subs = subsNow();
+  if (S.cur.status === 'loading') h = opt('', '读取机型中…', true);
+  else if (!subs.length) h = opt('', S.target ? '（没有可选项）' : '— 先选平台 —', true);
+  else h = opt('', '— 请选择子平台 —', !S.sub) + subs.map(function (x) {
+    return opt(x.id, x.id + (x.name && x.name !== x.id ? ' · ' + x.name : '') + (x.arch ? ' · ' + x.arch : ''), x.id === S.sub);
+  }).join('');
+  b.innerHTML = h; b.disabled = !subs.length;
+
+  const devs = devicesNow(), q = (S.devQ || '').trim().toLowerCase();
+  const shown = devs.filter(function (d) {
+    return !q || d.id === S.profile || (d.name + ' ' + d.id + ' ' + (d.alt || []).join(' ')).toLowerCase().indexOf(q) >= 0;
+  });
+  if (!devs.length) h = opt('', S.sub ? '（没有可选机型）' : '— 先选子平台 —', true);
+  else {
+    h = opt('', '— 选择机型（共 ' + devs.length + ' 个' + (q ? '，筛出 ' + shown.length + ' 个' : '') + '）—', !S.profile);
+    if (S.profile && !devs.some(function (d) { return d.id === S.profile; })) h += opt(S.profile, S.profile + '（不在源码机型列表里）', true);
+    h += shown.map(function (d) { return opt(d.id, d.name + (d.name !== d.id ? '  ·  ' + d.id : ''), d.id === S.profile); }).join('');
+  }
+  c.innerHTML = h; c.disabled = !devs.length;
+  const q2 = $('#stDevQ'); if (q2) q2.disabled = !devs.length;
+
+  const step1 = $('#step1'), step2 = $('#step2'), step3 = $('#step3');
+  if (step1) {
+    const devOk = !!(targetStr() && S.profile);
+    step1.className = 'step ' + (devOk ? 'done' : 'on');
+    step2.className = 'step ' + (!devOk ? '' : S.sel.size ? 'done' : 'on');
+    step3.className = 'step ' + (devOk && S.sel.size ? 'on' : '');
+  }
+}
+function drawHint() {
+  const el = $('#stHint');
+  if (!el) return;
+  const p = projectNow();
+  const btn = ' <button class="lnk" id="stRetry">重试</button>';
+  if (S.plat.status === 'loading') { el.innerHTML = '正在从源码仓库读取平台列表…'; return; }
+  if (S.plat.status === 'error') { el.innerHTML = esc('读取失败：' + S.plat.err + '。读取成功后才能选平台和机型。') + btn; bindRetry(); return; }
+  if (S.cur.status === 'loading') { el.innerHTML = '正在读取 ' + esc(S.cur.id) + ' 的机型（实时解析源码，首次约几秒）…'; return; }
+  if (S.cur.status === 'error') { el.innerHTML = esc('读取 ' + S.cur.id + ' 失败：' + S.cur.err) + btn; bindRetry(); return; }
+  el.innerHTML = esc('平台和机型由 Worker 实时读取自 ' + String(p ? p.repo_url : '').replace('https://github.com/', '') + ' @ ' + (p ? p.branch : '') + '，结果缓存 7 天' + (S.cur.fetched ? '（' + S.cur.fetched + '）' : '')) + btn;
+  bindRetry();
+}
+function bindRetry() {
+  const b = $('#stRetry');
+  if (!b) return;
+  b.addEventListener('click', function () { if (S.plat.status === 'error') loadPlatforms(true); else loadPlatform(S.target, true); });
+}
+
+function drawCats() {
+  const box = $('#stCats');
+  if (!box) return;
+  box.innerHTML = S.cats.map(function (c) {
+    const n = c === '全部' ? S.catalog.length : S.catalog.filter(function (p) { return p.cat === c; }).length;
+    return '<button class="cat' + (!S.only && c === S.cat ? ' on' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + ' <span class="n">' + n + '</span></button>';
+  }).join('') + '<button class="cat' + (S.only ? ' on' : '') + '" data-cat="__only">只看已选 <span class="n">' + S.sel.size + '</span></button>';
+  $$('[data-cat]', box).forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.cat === '__only') { S.only = true; }
+      else { S.only = false; S.cat = b.dataset.cat; }
+      S.limit = 48;
+      drawCats(); drawGrid();
+    });
+  });
+}
+function filteredPlugins() {
+  if (S.only) return S.catalog.filter(function (p) { return S.sel.has(p.id); });
+  const q = S.q;
+  return S.catalog.filter(function (p) {
+    if (S.cat !== '全部' && p.cat !== S.cat) return false;
+    if (!q) return true;
+    const hay = (p.name + ' ' + p.desc + ' ' + p.id + ' ' + p.cat + ' ' + (S.kw[p.cat] || '') + ' ' + (p.tags || []).join(' ')).toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+}
+function drawGrid() {
+  const box = $('#stGrid');
+  if (!box) return;
+  const list = filteredPlugins();
+  box.innerHTML = list.length ? list.slice(0, S.limit).map(function (p) {
+    const on = S.sel.has(p.id);
+    const cat = p.cat;
+    return '<article class="plugin' + (on ? ' on' : '') + '" data-plugin="' + esc(p.id) + '">' +
+      '<span class="tile" style="' + catStyle(cat) + '">' + esc((p.name || p.id).charAt(0).toUpperCase()) + '</span>' +
+      '<div class="body">' +
+        '<div class="nm">' + esc(p.name) + (p.rec ? '<span class="rec" title="推荐">' + ic('spark') + '</span>' : '') + '</div>' +
+        '<div class="pk">' + esc(p.id) + '</div>' +
+        '<div class="ds">' + esc(p.desc) + '</div>' +
+        '<div class="meta"><span>' + (p.size_mb ? '≈ ' + p.size_mb + ' MB' : '体积未知') + '</span><span>·</span><span>' + (p.deps || []).length + ' 个依赖</span>' +
+          '<button class="lnk" data-info="' + esc(p.id) + '" style="margin-left:auto">详情</button></div>' +
+      '</div>' +
+      '<span class="tick">' + ic('check') + '</span>' +
+      (p.stale ? '<span class="corner-tag warn">目录已无</span>' : (p.custom ? '<span class="corner-tag">自定义</span>' : ((p.origin && p.origin.type !== 'builtin') ? '<span class="corner-tag">第三方</span>' : ''))) +
+    '</article>';
+  }).join('') : '<div class="empty" style="grid-column:1/-1"><div class="g">' + ic('search') + '</div><div class="m">没有匹配的插件</div><div class="s">换个关键词，或把仓库地址贴进「自定义插件」</div></div>';
+  $$('[data-plugin]', box).forEach(function (card) {
+    card.addEventListener('click', function (ev) {
+      const info = ev.target.closest('[data-info]');
+      if (info) { ev.stopPropagation(); pluginDetail(info.dataset.info); return; }
+      togglePlugin(card.dataset.plugin);
+    });
+  });
+  const more = $('#stMore');
+  if (more) more.innerHTML = list.length > S.limit ? '<button class="btn" id="stMoreBtn">显示更多（还有 ' + (list.length - S.limit) + ' 个）</button>' : '';
+  const mb = $('#stMoreBtn');
+  if (mb) mb.addEventListener('click', function () { S.limit += 48; drawGrid(); });
+}
+function togglePlugin(id) {
+  if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id);
+  drawGrid(); drawBasket();
+  const cats = $('#stCats');
+  if (cats) { const n = $('[data-cat="__only"] .n', cats); if (n) n.textContent = S.sel.size; }
+  drawSelects();
+}
+function basketWarnings() {
+  const S2 = selectedPlugins(), warns = [];
+  const px = S2.filter(function (p) { return p.cat === '代理'; });
+  if (px.length > 1) warns.push('选了 ' + px.length + ' 个代理插件，通常只需要一个，同时启用容易冲突。');
+  if (!targetStr()) warns.push('还没选平台和子平台。');
+  else if (!S.profile) warns.push('还没选机型。');
+  if (S.profile && curSub() && !devicesNow().some(function (d) { return d.id === S.profile; })) warns.push('这个机型不在所选子平台的源码列表里，建议重新选择。');
+  const stale = S2.filter(function (p) { return p.stale; }).length;
+  if (stale) warns.push(stale + ' 个插件已不在目录里，会按原包名尝试启用，编译前会校验是否生效。');
+  const dd = S2.filter(function (p) { return p.cat === '容器'; });
+  if (dd.length && S.profile && /^(mediatek\\/mt7621|ath79|ramips)/.test(targetStr())) warns.push('小内存机型上跑容器容易 OOM，确认内存足够再加。');
+  return warns;
+}
+function configPreview() {
+  const lines = [];
+  if (S.profile && /^[^/]+\\/[^/]+$/.test(targetStr())) {
+    const m = targetStr().split('/');
+    lines.push('CONFIG_TARGET_' + m[0] + '=y', 'CONFIG_TARGET_' + m[0] + '_' + m[1] + '=y', 'CONFIG_TARGET_' + m[0] + '_' + m[1] + '_DEVICE_' + S.profile + '=y');
+  }
+  selectedPlugins().forEach(function (p) {
+    lines.push('CONFIG_PACKAGE_' + p.id + '=y');
+    (p.requires || []).forEach(function (r) { lines.push('CONFIG_PACKAGE_' + r + '=y'); });
+  });
+  return lines.join('\\n');
+}
+function autoName() {
+  const p = projectNow();
+  return '商店 · ' + (p ? p.name : '') + ' · ' + (targetStr() || '未选平台') + ' · ' + (S.profile || '未选机型');
+}
+function drawBasket() {
+  const box = $('#stBasket');
+  if (!box) return;
+  const S2 = selectedPlugins();
+  const mb = 7 + S2.reduce(function (a, p) { return a + (p.size_mb || 0); }, 0);
+  const deps = {};
+  S2.forEach(function (p) { (p.deps || []).forEach(function (d) { deps[d] = 1; }); });
+  const budget = 120;
+  const pct = Math.min(100, (mb / budget) * 100);
+  const warns = basketWarnings();
+  const name = S.nameDirty ? S.tplName : autoName();
+  const d = devicesNow().filter(function (x) { return x.id === S.profile; })[0];
+
+  box.innerHTML =
+    '<div class="basket-head"><h2>' + ic('box') + '已选清单 <span class="cnt">' + S2.length + '</span></h2>' +
+      (S2.length ? '<button class="btn btn-sm btn-ghost" id="stClear">清空</button>' : '') + '</div>' +
+    '<div class="basket-list">' + (S2.length ? S2.map(function (p) {
+      return '<div class="bi"><span class="tile-s" style="' + catStyle(p.cat) + '">' + esc((p.name || p.id).charAt(0).toUpperCase()) + '</span>' +
+        '<span class="t">' + esc(p.name) + '</span><button class="x" data-rm="' + esc(p.id) + '" title="移除">' + ic('x') + '</button></div>';
+    }).join('') : '<div class="basket-empty">还没有选插件<br /><span style="font-size:11.5px">从左边点几项开始</span></div>') + '</div>' +
+    '<div class="basket-body">' +
+      '<div class="sum"><span>已知体积合计</span><b>≈ ' + mb.toFixed(1) + ' MB</b></div>' +
+      '<div><div class="meter' + (pct > 55 ? ' warn' : '') + '"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="meter-hint"><span>0</span><span>常见系统分区 ' + budget + ' MB</span></div></div>' +
+      '<div class="sum" style="font-size:11.5px"><span>' + S2.length + ' 个插件 · ' + Object.keys(deps).length + ' 个自动依赖</span><span class="mono">' + (targetStr() || '—') + '</span></div>' +
+      (warns.length ? warns.map(function (w) { return '<div class="note">' + ic('alert') + '<span>' + esc(w) + '</span></div>'; }).join('') : '') +
+      (d ? '<div class="note ok">' + ic('check') + '<span>已选 ' + esc(d.name) + '</span></div>' : '') +
+      '<div class="field" style="gap:5px"><label>模板名称</label><input class="input" id="stName" maxlength="80" value="' + esc(name) + '" /></div>' +
+      '<details class="fold"><summary>' + ic('right') + '查看将写入的配置行</summary><pre class="code">' + esc(configPreview()) + '</pre></details>' +
+      '<button class="btn btn-primary btn-lg btn-block" id="stGo"' + (S.busy ? ' disabled' : '') + '>' + ic('rocket') + (S.busy ? '保存中…' : (S.editId ? '保存到模板' : '生成模板')) + '</button>' +
+      '<div class="hint" style="text-align:center">不会立即编译，下一页确认后再点编译</div>' +
+    '</div>';
+
+  const clear = $('#stClear');
+  if (clear) clear.addEventListener('click', function () { S.sel.clear(); drawGrid(); drawBasket(); drawSelects(); });
+  $$('[data-rm]', box).forEach(function (b) {
+    b.addEventListener('click', function () { S.sel.delete(b.dataset.rm); drawGrid(); drawBasket(); drawSelects(); });
+  });
+  $('#stName').addEventListener('input', function (ev) { S.tplName = ev.target.value; S.nameDirty = true; });
+  $('#stGo').addEventListener('click', storeSave);
+}
+
+async function storeSave() {
+  if (S.busy) return;
+  const proj = projectNow();
+  const target = targetStr(), profile = (S.profile || '').trim();
+  if (!/^[^/]+\\/[^/]+$/.test(target)) { toast('请先选择平台和子平台', '', 'err'); return; }
+  if (!profile) { toast('请选择机型', '', 'err'); return; }
+  let name = (S.nameDirty ? S.tplName : autoName()).trim();
+  if (!name) { toast('请填写模板名称', '', 'err'); return; }
+  const ids = Array.from(S.sel);
+  const composed = composeFromSelection(ids, { plugins: [] });
+  S.busy = true; drawBasket();
+  try {
+    const body = {
+      name: name, repo_url: proj.repo_url, branch: proj.branch, target: target, profile: profile, project_id: proj.id,
+      plugins: composed.plugins, packages: composed.packages, selection: composed.selection,
     };
-    qs(cell, '[data-save-label]').addEventListener('click', save);
-    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') save(); });
-  }
-  
-  function confirmDeleteVersion(tplId, vid) {
-    const overlay = openModal(\`
-    <div class="modal-box" style="max-width:400px;">
-      <div class="modal-head"><h3>删除版本</h3><button class="ghost small" data-close>✕</button></div>
-      <div class="modal-body"><p>确定删除该 .config 历史版本？此操作不可恢复。</p></div>
-      <div class="modal-foot">
-        <button data-close>取消</button>
-        <button class="danger" id="confirm-del-v-btn">确定删除</button>
-      </div>
-    </div>\`, {
-      onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        qs(root, '#confirm-del-v-btn').addEventListener('click', async () => {
-          try { await api.deleteVersion(tplId, vid); toast('版本已删除', 'success'); closeModal(root); refreshTemplateDetail(tplId); } catch (e) { reportApiError(e, '删除失败'); }
-        });
-      }
-    });
-  }
-  
-  function openUploadConfigModal(tpl) {
-    const overlay = openModal(\`
-    <div class="modal-box" style="max-width:640px;">
-      <div class="modal-head"><h3>上传新 .config 版本</h3><button class="ghost small" data-close>✕</button></div>
-      <div class="modal-body">
-        <div class="field">
-          <label>选择文件（可选，也可直接粘贴到下方文本框）</label>
-          <input type="file" id="cfg-file" accept=".config,text/plain" />
-        </div>
-        <div class="field">
-          <label>.config 内容</label>
-          <textarea id="cfg-content" rows="12" placeholder="CONFIG_TARGET_xxx=y ..."></textarea>
-        </div>
-        <div class="field">
-          <label>备注（可选）</label>
-          <input type="text" id="cfg-label" placeholder="例如：稳定版" />
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button data-close>取消</button>
-        <button class="primary" id="do-upload-btn">上传</button>
-      </div>
-    </div>\`, {
-      onMount(root) {
-        qsa(root, '[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(root)));
-        qs(root, '#cfg-file').addEventListener('change', async (ev) => {
-          const file = ev.target.files[0];
-          if (!file) return;
-          qs(root, '#cfg-content').value = await file.text();
-        });
-        qs(root, '#do-upload-btn').addEventListener('click', async () => {
-          const content = qs(root, '#cfg-content').value;
-          if (!content.trim()) { toast('内容不能为空', 'error'); return; }
-          const btn = qs(root, '#do-upload-btn');
-          btn.disabled = true;
-          try {
-            await api.uploadDotconfig(tpl.id, { content, label: qs(root, '#cfg-label').value.trim() || undefined });
-            toast('上传成功', 'success');
-            closeModal(root);
-            refreshTemplateDetail(tpl.id);
-          } catch (e) { reportApiError(e, '上传失败'); btn.disabled = false; }
-        });
-      }
-    });
-    return overlay;
-  }
-  
-  const CRON_PRESETS = [
-    { label: '每天凌晨 2 点 UTC)', cron: '0 2 * * *' },
-    { label: '每天中午 12 点 UTC)', cron: '0 12 * * *' },
-    { label: '每周六 14 点 UTC)', cron: '0 14 * * 6' },
-  ];
-  
-  function renderScheduleSection(tpl, history) {
-    const wrap = document.getElementById('schedule-area');
-    const enabled = !!tpl.schedule_enabled;
-    const pinned = !!tpl.pin_dotconfig_version_id;
-    wrap.innerHTML = \`
-    <div class="schedule-form">
-      <div class="schedule-toggle-row">
-        <div class="switch">
-          <input type="checkbox" id="sched-enabled" \${enabled ? 'checked' : ''} />
-          <label for="sched-enabled" class="track"></label>
-        </div>
-        <span>启用定时编译</span>
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Cron 表达式</label>
-        <input type="text" id="sched-cron" value="\${escapeHtml(tpl.schedule_cron || '')}" placeholder="0 2 * * *" />
-        <div class="cron-presets">
-          \${CRON_PRESETS.map((p) => \`<button type="button" class="ghost" data-cron="\${p.cron}">\${p.label}</button>\`).join('')}
-        </div>
-        <div class="hint">Cloudflare 免费计划最多 3 个 cron 槽位；实际触发有约 30 秒抖动</div>
-      </div>
-      <div class="hint">\${pinned ? '当前固定了配置底稿，定时编译直接使用该版本。' : '当前没有固定配置底稿，每次定时编译都会按上面的机型和插件清单重新生成配置。'}可在上面的「编译选项」里修改。</div>
-      <div>
-        <button class="primary" id="save-sched-btn">保存定时设置</button>
-      </div>
-    </div>\`;
-    qsa(wrap, '[data-cron]').forEach((b) => { b.addEventListener('click', () => { qs(wrap, '#sched-cron').value = b.dataset.cron; }); });
-    qs(wrap, '#save-sched-btn').addEventListener('click', async () => {
-      const enabledNow = qs(wrap, '#sched-enabled').checked;
-      const cron = qs(wrap, '#sched-cron').value.trim();
-      if (enabledNow && !cron) { toast('请填写 cron 表达式', 'error'); return; }
-      const btn = qs(wrap, '#save-sched-btn');
-      btn.disabled = true;
-      try {
-        await api.setSchedule(tpl.id, { enabled: enabledNow, cron: cron || null });
-        toast('定时设置已保存', 'success');
-        refreshTemplateDetail(tpl.id);
-      } catch (e) { reportApiError(e, '保存失败'); btn.disabled = false; }
-    });
-  }
-  
-  async function renderBuildsPage() {
-    const app = document.getElementById('app');
-    app.innerHTML = \`
-    <div id="toast-wrap" class="toast-wrap"></div>
-    \${renderTopbar('builds')}
-    <div class="content">
-      <div class="page-head">
-        <div>
-          <h1>编译记录</h1>
-          <div class="sub">最近的手动与定时编译任务</div>
-        </div>
-        <div class="actions"><button class="ghost small" id="refresh-builds-btn">刷新</button></div>
-      </div>
-      <div id="builds-list-area"><div style="text-align:center;padding:40px;"><span class="spinner"></span></div></div>
-    </div>\`;
-    bindTopbar(app);
-    qs(app, '#refresh-builds-btn').addEventListener('click', loadBuildsList);
-    await loadBuildsList();
-  }
-  
-  async function loadBuildsList() {
-    const area = document.getElementById('builds-list-area');
-    if (!area) return;
-    try {
-      const { builds } = await api.listBuilds();
-      store.builds = builds;
-      renderBuildsList(builds);
-    } catch (e) {
-      area.innerHTML = \`<div class="empty-state"><div class="msg">加载失败：\${escapeHtml(e.message)}</div></div>\`;
+    let id = S.editId;
+    if (id) {
+      await api.updateTemplate(id, body);
+    } else {
+      const lt = await api.templates();
+      const base = name;
+      let n = 1;
+      while (lt.templates.some(function (x) { return x.name === name; })) { n++; name = base + ' (' + n + ')'; }
+      body.name = name;
+      id = (await api.createTemplate(body)).template.id;
     }
-  }
-  
-  function renderBuildsList(builds) {
-    const area = document.getElementById('builds-list-area');
-    if (!builds.length) {
-      area.innerHTML = \`
-      <div class="empty-state">
-        <div class="glyph">∅</div>
-        <div class="msg">还没有任何编译记录</div>
-        <div class="sub">前往某个模板触发一次编译试试</div>
-      </div>\`;
-      return;
-    }
-    const tplNameOf = (id) => (store.templates.find((t) => t.id === id) || {}).name || id || '—';
-    area.innerHTML = builds.map((b) => \`
-    <div class="build-row" data-build-id="\${escapeHtml(b.id)}">
-      <div class="top-line">
-        <div class="left-info">
-          <span class="tpl-name">\${escapeHtml(tplNameOf(b.template_id))}</span>
-          <span class="badge dim">\${b.trigger_type === 'scheduled' ? '定时' : '手动'}</span>
-          <span class="badge \${statusBadgeClass(b.status)}">\${STATUS_LABELS[b.status] || b.status}</span>
-        </div>
-        <span class="time">\${fmtTime(b.created_at)}</span>
-      </div>
-      \${renderTimeline(b)}
-      <div class="links">
-        \${b.web_url ? \`<a href="\${escapeHtml(b.web_url)}" target="_blank" rel="noopener">打开网页终端 →</a>\` : ''}
-        \${b.download_url ? \`<a href="\${escapeHtml(b.download_url)}" target="_blank" rel="noopener">下载产物 →</a>\` : ''}
-        \${renderCacheNote(b)}
-        \${renderBuildNote(b)}
-        \${b.has_snapshot ? '<button class="ghost small view-cfg-btn" data-kind="snapshot">查看底稿</button>' : ''}
-        \${b.has_result ? '<button class="ghost small view-cfg-btn" data-kind="result">查看最终配置</button>' : ''}
-        \${ACTIVE_BUILD_STATUSES.includes(b.status) ? \`<button class="ghost small cancel-build-btn" style="color:var(--bad);margin-left:auto;">取消编译</button>\` : ''}
-      </div>
-    </div>\`).join('');
-    qsa(area, '.cache-pub-btn').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
-        if (!buildId) return;
-        btn.disabled = true;
-        try { await api.setCachePublish(buildId, btn.dataset.on !== '1'); toast(btn.dataset.on === '1' ? '已取消发布缓存' : '编译完成后将发布缓存', 'success'); loadBuildsList(); }
-        catch (e) { reportApiError(e, '设置失败'); btn.disabled = false; }
-      });
-    });
-    qsa(area, '.view-cfg-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
-        if (buildId) viewBuildConfig(buildId, btn.dataset.kind);
-      });
-    });
-    qsa(area, '.cancel-build-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const buildId = btn.closest('[data-build-id]')?.dataset.buildId;
-        if (!buildId) return;
-        cancelBuildWithConfirm(buildId, loadBuildsList);
-      });
-    });
-  }
-  
-  const STORE = { loaded: false, catalog: [], projects: [], plat: { status: 'none', list: [], err: '', fetched: '' }, cur: { id: '', subs: [], status: 'none', err: '', fetched: '' }, sel: new Set(['luci-app-store']), cat: '全部', q: '', pi: 0, target: 'x86', sub: '64', profile: 'generic', devQ: '', editId: null, tplName: '', nameDirty: false, stale: [], busy: false, limit: 48, only: false, cats: ['全部'], kw: {}, meta: '', refresh: false, seq: 0 };
-  const STORE_PRESETS = { '旁路由': ['luci-app-store', 'luci-app-passwall', 'luci-app-smartdns', 'luci-app-ttyd'], '家庭全能': ['luci-app-store', 'luci-app-openclash', 'luci-app-adblock-fast', 'luci-app-samba4', 'luci-app-qbittorrent', 'luci-app-ddns-go', 'luci-app-upnp', 'luci-theme-argon'], '极简': ['luci-app-store'] };
-  const STORE_TARGET_RE = new RegExp('^[A-Za-z0-9_+-][A-Za-z0-9_.+-]*/[A-Za-z0-9_+-][A-Za-z0-9_.+-]*$');
-  const STORE_PROFILE_RE = new RegExp('^[A-Za-z0-9_.+-]+$');
-  function storeHue(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return h; }
-  function storeOrigin(p) {
-    const o = p.origin || { type: 'builtin' };
-    if (o.type === 'git') return { name: o.name, git_url: o.url, sparse: !!o.sparse, branch: o.branch || '', dirs: o.dirs || [] };
-    if (o.type === 'feed') return { name: o.name, feed: o.line };
-    return null;
-  }
-  function storeBy(id) { return STORE.catalog.find(function (p) { return p.id === id; }); }
-  function storeSelected() { return Array.from(STORE.sel).map(storeBy).filter(Boolean); }
-  function storeToggle(id) { if (STORE.sel.has(id)) STORE.sel.delete(id); else STORE.sel.add(id); storeDrawGrid(); storeDrawBasket(); }
-  function storeProject() { return STORE.projects[STORE.pi] || STORE.projects[0]; }
-  function storeTargetStr() { return STORE.target && STORE.sub ? STORE.target + '/' + STORE.sub : ''; }
-  function storeSubs() { return STORE.cur.id === STORE.target ? STORE.cur.subs : []; }
-  function storeCurSub() { return storeSubs().find(function (x) { return x.id === STORE.sub; }); }
-  function storeDevices() { const x = storeCurSub(); return x ? x.devices : []; }
-  function storeErr(e) { return (e && e.message) ? e.message : '读取失败'; }
-  function storeOpt(v, label, sel) { return '<option value="' + escapeHtml(v) + '"' + (sel ? ' selected' : '') + '>' + escapeHtml(label) + '</option>'; }
-
-  // 应用插件目录。编辑模板时，目录里已经没有的插件会作为「目录已无」条目保留，避免保存时被悄悄丢掉
-  function storeApplyCatalog(d) {
-    STORE.catalog = d.plugins.filter(function (p) { return !p.hidden; });
-    STORE.kw = {}; d.categories.forEach(function (c) { STORE.kw[c.id] = c.keywords || ''; });
-    STORE.cats = ['全部'].concat(d.categories.slice().sort(function (a, b) { return a.order - b.order; }).map(function (c) { return c.id; }).filter(function (c) { return STORE.catalog.some(function (p) { return p.cat === c; }); }));
-    STORE.stale.forEach(function (p) { if (!storeBy(p.id)) STORE.catalog.push(p); if (STORE.cats.indexOf(p.cat) < 0) STORE.cats.push(p.cat); });
-    STORE.meta = '目录更新于 ' + (d.updated || '未知') + '，' + (d.source === 'remote' ? '来自你的仓库 catalog.json' : '使用内置目录');
-    STORE.loaded = true;
-  }
-  async function storeReloadCatalog() { storeApplyCatalog(await api.get('/api/catalog')); }
-
-  function storeReset() {
-    STORE.sel = new Set(['luci-app-store']); STORE.target = 'x86'; STORE.sub = '64'; STORE.profile = 'generic'; STORE.devQ = '';
-    STORE.editId = null; STORE.tplName = ''; STORE.nameDirty = false; STORE.stale = [];
-    STORE.q = ''; STORE.cat = '全部'; STORE.only = false; STORE.limit = 48;
-  }
-
-  function storeSynth(id, plugins) {
-    let origin = { type: 'builtin' };
-    (plugins || []).forEach(function (p) {
-      if (p.feed) return;
-      if (p.sparse && (p.dirs || []).some(function (d) { return d.split('/').pop() === id; })) origin = { type: 'git', name: id, url: p.git_url, branch: p.branch || '', sparse: true, dirs: (p.dirs || []).filter(function (d) { return d.split('/').pop() === id; }) };
-      else if (!p.sparse && p.name === id) origin = { type: 'git', name: id, url: p.git_url, branch: p.branch || '', sparse: false, dirs: [] };
-    });
-    return { id: id, name: id, desc: origin.type === 'builtin' ? '插件目录里已经没有这一项，仍会按包名尝试启用。' : '模板里保存的第三方插件，不在当前目录里。', desc_en: '', cat: '自定义', kind: 'app', origin: origin, deps: [], requires: [], size_mb: null, rec: false, tut: '', tags: [], hidden: false, custom: origin.type !== 'builtin', stale: true };
-  }
-
-  // 编辑模板：把模板里保存的源码、平台、机型、插件选择回填到商店
-  async function storeEnterEdit(id) {
-    const t = (await api.getTemplate(id)).template;
+    const wasEdit = !!S.editId;
+    S.busy = false;
     storeReset();
-    STORE.editId = t.id; STORE.tplName = t.name; STORE.nameDirty = true;
-    let i = STORE.projects.findIndex(function (p) { return t.project_id && p.id === t.project_id; });
-    if (i < 0) i = STORE.projects.findIndex(function (p) { return p.repo_url === t.repo_url && p.branch === t.branch; });
-    if (i < 0) {
-      toast('这个模板用的源码项目已不在列表里，请重新选择源码、平台和机型', 'error');
-      STORE.target = ''; STORE.sub = ''; STORE.profile = '';
-    } else {
-      STORE.pi = i;
-      const tp = String(t.target || '').split('/');
-      STORE.target = tp[0] || ''; STORE.sub = tp[1] || ''; STORE.profile = t.profile || '';
-    }
-    const ids = (t.selection && t.selection.length) ? t.selection : (t.packages || []).filter(function (x) { return !!storeBy(x); });
-    STORE.sel = new Set(ids);
-    STORE.stale = [];
-    ids.forEach(function (x) { if (!storeBy(x)) { const p = storeSynth(x, t.plugins); STORE.stale.push(p); STORE.catalog.push(p); if (STORE.cats.indexOf(p.cat) < 0) STORE.cats.push(p.cat); } });
+    toast(wasEdit ? '已保存到模板' : '模板已生成', wasEdit ? '' : '确认无误后再点编译', 'info');
+    nav('#/template/' + id);
+  } catch (e) {
+    S.busy = false;
+    fail(e, '保存失败');
+    drawBasket();
   }
+}
 
-  async function storeLoadProjects() {
-    const pj = await api.get('/api/projects');
-    STORE.projects = pj.projects;
-    if (STORE.pi >= STORE.projects.length) STORE.pi = 0;
-  }
+function pluginDetail(id) {
+  const p = pluginById(id);
+  if (!p) return;
+  const on = S.sel.has(id), o = pluginOrigin(p);
+  openModal('<div class="modal" style="max-width:520px"><div class="modal-head"><div style="min-width:0">' +
+    '<h3>' + esc(p.name) + '</h3><div class="mono dim" style="font-size:11.5px;margin-top:2px">' + esc(p.id) + '</div></div>' +
+    '<button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body">' +
+      '<div style="display:flex;gap:10px;align-items:center"><span class="tile" style="' + catStyle(p.cat) + ';width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-weight:700">' + esc(p.name.charAt(0).toUpperCase()) + '</span>' +
+      '<div><div class="tag">' + esc(p.cat) + '</div></div></div>' +
+      '<p style="margin:0;font-size:13px;line-height:1.7;color:var(--ink-2)">' + esc(p.desc) + '</p>' +
+      (p.tut ? '<div class="note info">' + ic('info') + '<span>' + esc(p.tut) + '</span></div>' : '') +
+      '<div class="dl"><span class="k">依赖</span><span class="v mono">' + (p.deps && p.deps.length ? esc(p.deps.join('、')) : '无') + '</span></div>' +
+      '<div class="dl"><span class="k">额外包</span><span class="v mono">' + (p.requires && p.requires.length ? esc(p.requires.join('、')) : '无') + '</span></div>' +
+      '<div class="dl"><span class="k">体积</span><span class="v mono">' + (p.size_mb ? '≈ ' + p.size_mb + ' MB' : '未知') + '</span></div>' +
+      '<div class="dl"><span class="k">来源</span><span class="v mono" style="word-break:break-all">' + (o ? esc(o.git_url || o.feed) : '源码内置') + '</span></div>' +
+    '</div>' +
+    '<div class="modal-foot">' + (p.custom && !p.stale ? '<button class="btn btn-danger" id="pDel" style="margin-right:auto">删除这个插件</button>' : '') +
+    '<button data-close>关闭</button><button class="btn btn-primary" id="pAdd">' + (on ? '从固件移除' : '添加到固件') + '</button></div></div>', {
+    onMount: function (root) {
+      $('#pAdd', root).addEventListener('click', function () { togglePlugin(id); closeModal(root); });
+      const del = $('#pDel', root);
+      if (del) del.addEventListener('click', async function () {
+        try { await api.delCustomPlugin(id); S.sel.delete(id); await ensureCatalog(true); S.loaded = true; drawCats(); drawGrid(); drawBasket(); closeModal(root); toast('已删除'); }
+        catch (e) { fail(e, '删除失败'); }
+      });
+    },
+  });
+}
 
-  // 平台列表：Worker 实时从源码仓库的 target/linux 读取
-  async function storeLoadPlatforms(force) {
-    const p = storeProject(), seq = ++STORE.seq;
-    STORE.plat = { status: 'loading', list: [], err: '', fetched: '' };
-    STORE.cur = { id: '', subs: [], status: 'none', err: '', fetched: '' };
-    storeDrawSelects(); storeDrawHint();
+function customPluginModal() {
+  const listHTML = function () {
+    const c = S.catalog.filter(function (p) { return p.custom && !p.stale; });
+    return c.length ? c.map(function (p) {
+      const o = p.origin || {};
+      return '<div class="src-row"><code>' + esc(p.name) + '</code><span>' + esc((o.url || '') + (o.sparse && o.dirs ? ' · ' + o.dirs.join(', ') : '')) + '</span>' +
+        '<button class="lnk danger" data-cpdel="' + esc(p.id) + '">删除</button></div>';
+    }).join('') : '<div class="hint">还没有自定义插件</div>';
+  };
+  const overlay = openModal('<div class="modal" style="max-width:600px"><div class="modal-head"><h3>自定义插件</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="hint">填插件源码的 GitHub 仓库地址，识别后加入商店。整个仓库是一个包、或者仓库里有多个包都可以。</div>' +
+      '<div class="note">' + ic('shield') + '<span>编译时会执行这个仓库里的代码，请只添加你信任的仓库。</span></div>' +
+      '<div class="field"><label>已添加</label><div id="cpList">' + listHTML() + '</div></div>' +
+      '<div class="field"><label>仓库地址</label><input class="input mono" id="cpUrl" placeholder="https://github.com/用户/仓库" /></div>' +
+      '<div class="field"><label>分支（留空用默认分支）</label><input class="input mono" id="cpBranch" /></div>' +
+      '<div><button class="btn btn-primary" id="cpDetect">识别</button></div>' +
+      '<div id="cpRes"></div>' +
+    '</div><div class="modal-foot"><button data-close>关闭</button></div></div>');
+
+  const res = $('#cpRes', overlay);
+  let det = null;
+  const manualForm = function (note) {
+    res.innerHTML = (note ? '<div class="note">' + ic('info') + '<span>' + esc(note) + '</span></div>' : '') +
+      '<div class="field"><label>包名</label><input class="input mono" id="cpId" placeholder="luci-app-xxx" /></div>' +
+      '<div class="field"><label>显示名称</label><input class="input" id="cpName" /></div>' +
+      '<div class="field"><label>简介</label><input class="input" id="cpDesc" /></div>' +
+      '<div class="field"><label>额外需要的包（逗号分隔）</label><input class="input mono" id="cpReq" placeholder="例如 video-support" /></div>' +
+      '<button class="btn btn-primary" id="cpAddOne">添加</button>';
+  };
+  const reload = async function (r) {
+    await ensureCatalog(true);
+    S.loaded = true;
+    (r.plugins || []).forEach(function (p) { S.sel.add(p.id); });
+    S.cat = '自定义'; S.only = false; S.q = ''; S.limit = 48;
+    const q = $('#stQ'); if (q) q.value = '';
+    drawCats(); drawGrid(); drawBasket();
+    $('#cpList', overlay).innerHTML = listHTML();
+    res.innerHTML = '';
+    toast('已添加 ' + (r.plugins || []).length + ' 个插件', '并加入已选清单');
+  };
+
+  $('#cpDetect', overlay).addEventListener('click', async function (ev) {
+    const url = $('#cpUrl', overlay).value.trim();
+    if (!url) { toast('请填写仓库地址', '', 'err'); return; }
+    ev.currentTarget.disabled = true;
+    res.innerHTML = '<div class="loading" style="padding:16px">' + ic('refresh') + '<span>正在识别…</span></div>';
     try {
-      const d = await api.get('/api/platforms?project=' + encodeURIComponent(p.id) + (force ? '&refresh=1' : ''));
-      if (seq !== STORE.seq) return;
-      STORE.plat = { status: 'ready', list: d.platforms, err: '', fetched: d.fetched_at || '' };
-    } catch (e) {
-      if (seq !== STORE.seq) return;
-      STORE.plat = { status: 'error', list: [], err: storeErr(e), fetched: '' };
-    }
-    if (STORE.plat.status === 'ready' && !STORE.plat.list.some(function (x) { return x.id === STORE.target; })) { STORE.target = ''; STORE.sub = ''; STORE.profile = ''; }
-    storeDrawSelects(); storeDrawHint(); storeDrawBasket();
-    if (STORE.plat.status === 'ready' && STORE.target) storeLoadPlatform(STORE.target, force);
-  }
+      det = await api.detectPlugin({ repo_url: url, branch: $('#cpBranch', overlay).value.trim() });
+      if (!det.detected) { manualForm(det.reason); return; }
+      if (det.root) {
+        manualForm('识别为单个插件包（包名读自 Makefile，可以改）。');
+        $('#cpId', overlay).value = det.pkg_name || '';
+        $('#cpReq', overlay).value = (det.requires || []).join(', ');
+      } else if ((det.candidates || []).length) {
+        res.innerHTML = '<div class="hint">仓库里有多个包，勾选要添加的：</div>' +
+          '<input class="input" id="cpFilter" placeholder="筛选" />' +
+          '<div class="cand-box" id="cpCands">' + det.candidates.map(function (c) {
+            const base = c.path.split('/').pop();
+            return '<label class="cand"><input type="checkbox" data-path="' + esc(c.path) + '" /><span>' + esc(c.path) +
+              (c.id !== base ? ' <b>→ ' + esc(c.id) + '</b>' : '') +
+              ((c.requires || []).length ? ' <small>（同时包含 ' + esc((c.requires || []).join(', ')) + '）</small>' : '') + '</span></label>';
+          }).join('') + '</div>' +
+          '<div class="field"><label>所选插件都需要的包（可选）</label><input class="input mono" id="cpReqDirs" placeholder="例如 video-support" /></div>' +
+          '<button class="btn btn-primary" id="cpAddDirs">添加所选</button>';
+        $('#cpFilter', overlay).addEventListener('input', function (e) {
+          const q = e.target.value.toLowerCase();
+          $$('.cand', overlay).forEach(function (l) { l.style.display = !q || l.textContent.toLowerCase().indexOf(q) >= 0 ? 'flex' : 'none'; });
+        });
+      } else {
+        manualForm('仓库里没找到 Makefile。如果确定是 OpenWrt 软件包仓库，可以手动填包名。');
+      }
+    } catch (e) { res.innerHTML = ''; fail(e, '识别失败'); }
+    ev.currentTarget.disabled = false;
+  });
 
-  // 单个平台：子平台和机型（解析该平台 image 目录下的 *.mk）
-  async function storeLoadPlatform(t, force) {
-    const p = storeProject(), seq = ++STORE.seq;
-    STORE.cur = { id: t, subs: [], status: 'loading', err: '', fetched: '' };
-    storeDrawSelects(); storeDrawHint();
+  overlay.addEventListener('click', async function (ev) {
+    const t = ev.target.closest('button');
+    if (!t) return;
     try {
-      const d = await api.get('/api/platform?project=' + encodeURIComponent(p.id) + '&target=' + encodeURIComponent(t) + (force ? '&refresh=1' : ''));
-      if (seq !== STORE.seq) return;
-      STORE.cur = { id: t, subs: d.subtargets, status: 'ready', err: '', fetched: d.fetched_at || '' };
-      if (!STORE.sub) {
-        const pick = d.subtargets.find(function (x) { return x.id === '64'; }) || d.subtargets[0];
-        STORE.sub = pick.id; STORE.profile = '';
-        const g = pick.devices.find(function (x) { return x.id === 'generic'; });
-        if (g) STORE.profile = g.id;
-      } else if (!storeCurSub()) {
-        toast('原来的子平台 ' + STORE.sub + ' 在当前源码里找不到，请重新选择子平台和机型', 'error');
-        STORE.sub = ''; STORE.profile = '';
+      if (t.id === 'cpAddOne') {
+        const body = {
+          repo_url: $('#cpUrl', overlay).value.trim(), branch: (det && det.branch) || $('#cpBranch', overlay).value.trim(),
+          id: $('#cpId', overlay).value.trim(), name: $('#cpName', overlay).value.trim(), desc: $('#cpDesc', overlay).value.trim(),
+          requires: $('#cpReq', overlay).value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
+        };
+        await reload(await api.addCustomPlugin(body));
+      } else if (t.id === 'cpAddDirs') {
+        const dirs = $$('#cpCands input:checked', overlay).map(function (x) {
+          const c = (det.candidates || []).filter(function (y) { return y.path === x.dataset.path; })[0];
+          return { path: x.dataset.path, id: c ? c.id : '', requires: c ? c.requires : [] };
+        });
+        if (!dirs.length) { toast('请先勾选要添加的包', '', 'err'); return; }
+        await reload(await api.addCustomPlugin({
+          repo_url: $('#cpUrl', overlay).value.trim(), branch: (det && det.branch) || $('#cpBranch', overlay).value.trim(),
+          dirs: dirs, requires: $('#cpReqDirs', overlay).value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
+        }));
+      } else if (t.dataset.cpdel) {
+        await api.delCustomPlugin(t.dataset.cpdel);
+        S.sel.delete(t.dataset.cpdel);
+        await ensureCatalog(true); S.loaded = true;
+        drawCats(); drawGrid(); drawBasket();
+        $('#cpList', overlay).innerHTML = listHTML();
       }
-    } catch (e) {
-      if (seq !== STORE.seq) return;
-      STORE.cur = { id: t, subs: [], status: 'error', err: storeErr(e), fetched: '' };
-    }
-    storeDrawSelects(); storeDrawHint(); storeDrawBasket();
-  }
+    } catch (e) { fail(e, '操作失败'); }
+  });
+}
 
-  // 平台 / 子平台 / 机型只能从下拉框里选；机型很多，旁边的输入框只用来筛选选项
-  function storeDrawSelects() {
-    const a = document.getElementById('st-tgt'), b = document.getElementById('st-sub'), c = document.getElementById('st-dev');
-    if (!a || !b || !c) return;
-    let h;
-    if (STORE.plat.status === 'loading') h = storeOpt('', '读取平台中…', true);
-    else if (STORE.plat.status === 'error') h = storeOpt('', '读取失败，请点下方重试', true);
-    else h = storeOpt('', '— 请选择平台 —', !STORE.target) + STORE.plat.list.map(function (t) { return storeOpt(t.id, t.id, t.id === STORE.target); }).join('');
-    a.innerHTML = h; a.disabled = STORE.plat.status !== 'ready';
-    const subs = storeSubs();
-    if (STORE.cur.status === 'loading') h = storeOpt('', '读取机型中…', true);
-    else if (!subs.length) h = storeOpt('', STORE.target ? '（没有可选项）' : '— 先选平台 —', true);
-    else h = storeOpt('', '— 请选择子平台 —', !STORE.sub) + subs.map(function (x) { return storeOpt(x.id, x.id + (x.name && x.name !== x.id ? ' · ' + x.name : '') + (x.arch ? ' · ' + x.arch : ''), x.id === STORE.sub); }).join('');
-    b.innerHTML = h; b.disabled = !subs.length;
-    const devs = storeDevices(), q = (STORE.devQ || '').trim().toLowerCase();
-    const shown = devs.filter(function (d) { return !q || d.id === STORE.profile || (d.name + ' ' + d.id + ' ' + (d.alt || []).join(' ')).toLowerCase().indexOf(q) >= 0; });
-    if (!devs.length) h = storeOpt('', STORE.sub ? '（没有可选机型）' : '— 先选子平台 —', true);
-    else {
-      h = storeOpt('', '— 请选择机型（共 ' + devs.length + ' 个' + (q ? '，筛出 ' + shown.length + ' 个' : '') + '）—', !STORE.profile);
-      if (STORE.profile && !devs.some(function (d) { return d.id === STORE.profile; })) h += storeOpt(STORE.profile, STORE.profile + '（不在源码机型列表里）', true);
-      h += shown.map(function (d) { return storeOpt(d.id, d.name + (d.name !== d.id ? '  ·  ' + d.id : ''), d.id === STORE.profile); }).join('');
-    }
-    c.innerHTML = h; c.disabled = !devs.length;
-    const q2 = document.getElementById('st-devq'); if (q2) q2.disabled = !devs.length;
-  }
-  function storeSyncInputs() { storeDrawSelects(); }
-
-  function storeDrawHint() {
-    const el = document.getElementById('st-devhint'); if (!el) return;
-    const p = storeProject(), btn = ' <button class="ghost small" id="st-devrefresh">';
-    if (STORE.plat.status === 'loading') { el.textContent = '正在从源码仓库读取平台列表…'; return; }
-    if (STORE.plat.status === 'error') { el.innerHTML = escapeHtml('读取失败：' + STORE.plat.err + '。读取成功后才能选择平台和机型。') + btn + '重试</button>'; return; }
-    if (STORE.cur.status === 'loading') { el.textContent = '正在读取 ' + STORE.cur.id + ' 的机型（实时解析源码，首次约几秒）…'; return; }
-    if (STORE.cur.status === 'error') { el.innerHTML = escapeHtml('读取 ' + STORE.cur.id + ' 失败：' + STORE.cur.err) + btn + '重试</button>'; return; }
-    if (STORE.plat.status === 'ready') el.innerHTML = escapeHtml('平台和机型由 Worker 实时读取自 ' + p.repo_url.replace('https://github.com/', '') + ' @ ' + p.branch + '，结果缓存 7 天' + (STORE.cur.fetched ? '（' + STORE.cur.fetched + '）' : '')) + btn + '刷新</button>';
-  }
-
-  // 自定义插件：填仓库地址 → 识别 → 添加后和目录里的插件一起出现在商店
-  function storeCustomPluginModal() {
-    function listHtml() {
-      const c = STORE.catalog.filter(function (p) { return p.custom && !p.stale; });
-      return c.length ? c.map(function (p) {
-        const o = p.origin || {};
-        return '<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><b>' + escapeHtml(p.name) + '</b> <code class="hint">' + escapeHtml(p.id) + '</code><div class="hint" style="word-break:break-all">' + escapeHtml((o.url || '') + (o.sparse && o.dirs ? ' · ' + o.dirs.join(', ') : '')) + '</div></div><button class="ghost small" data-cpdel="' + escapeHtml(p.id) + '">删除</button></div>';
-      }).join('') : '<div class="hint">还没有自定义插件</div>';
-    }
-    const m = el('<div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:50;padding:16px"><div style="background:var(--panel);border-radius:14px;padding:20px;width:min(560px,94vw);max-height:90vh;overflow:auto"><h2 style="margin:0 0 4px">添加 / 管理自定义插件</h2>'
-      + '<div class="hint">填写插件源码的 GitHub 仓库地址，识别后添加到商店，勾选即可使用。整个仓库是一个包，或仓库里有多个包，都可以。</div>'
-      + '<div class="st-warn" style="margin-top:8px">编译时会运行这个仓库里的代码，请只添加你信任的仓库。</div>'
-      + '<h3 style="margin:14px 0 4px;font-size:14px">已添加的自定义插件（可删除）</h3><div id="cp-list">' + listHtml() + '</div>'
-      + '<h3 style="margin:16px 0 0;font-size:14px">添加新的</h3>'
-      + '<label style="display:block;margin-top:8px">仓库地址<input id="cp-url" placeholder="https://github.com/用户/仓库" style="width:100%"></label>'
-      + '<label style="display:block;margin-top:8px">分支（留空使用默认分支）<input id="cp-branch" style="width:100%"></label>'
-      + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="primary" id="cp-detect">识别</button></div>'
-      + '<div id="cp-res" style="margin-top:10px"></div>'
-      + '<div style="text-align:right;margin-top:14px"><button class="ghost" id="cp-close">关闭</button></div></div></div>');
-    document.body.appendChild(m);
-    const res = m.querySelector('#cp-res');
-    let det = null;
-    function manualForm(note) {
-      res.innerHTML = (note ? '<div class="hint">' + escapeHtml(note) + '</div>' : '')
-        + '<label style="display:block;margin-top:8px">包名（CONFIG_PACKAGE_ 后面的名字，如 luci-app-xxx）<input id="cp-id" style="width:100%"></label>'
-        + '<label style="display:block;margin-top:8px">显示名称（可选）<input id="cp-name" style="width:100%"></label>'
-        + '<label style="display:block;margin-top:8px">简介（可选）<input id="cp-desc" style="width:100%"></label>'
-        + '<label style="display:block;margin-top:8px">额外需要的包（可选，逗号分隔，例如 video-support）<input id="cp-req" style="width:100%"></label>'
-        + '<div style="text-align:right;margin-top:10px"><button class="primary" id="cp-add-one">添加</button></div>';
-    }
-    async function after(r) {
-      await storeReloadCatalog();
-      (r.plugins || []).forEach(function (p) { STORE.sel.add(p.id); });
-      STORE.cat = '自定义'; STORE.only = false; STORE.q = ''; STORE.limit = 48;
-      const qi = document.getElementById('st-q'); if (qi) qi.value = '';
-      storeDrawGrid(); storeDrawBasket();
-      m.querySelector('#cp-list').innerHTML = listHtml();
-      res.innerHTML = '';
-      toast('已添加 ' + (r.plugins || []).length + ' 个，并已加入已选', 'success');
-    }
-    m.querySelector('#cp-close').onclick = function () { m.remove(); };
-    m.querySelector('#cp-detect').onclick = async function () {
-      const url = m.querySelector('#cp-url').value.trim(), br = m.querySelector('#cp-branch').value.trim();
-      if (!url) { toast('请填写仓库地址', 'error'); return; }
-      res.innerHTML = '<div class="hint">正在识别…</div>';
-      try {
-        det = await api.post('/api/custom-plugins/detect', { repo_url: url, branch: br });
-        if (!det.detected) { manualForm(det.reason); return; }
-        if (det.root) {
-          manualForm('识别为单个插件包（包名读自仓库根目录的 Makefile，可以改）。');
-          m.querySelector('#cp-id').value = det.pkg_name;
-          m.querySelector('#cp-req').value = (det.requires || []).join(', ');
-        } else if (det.candidates.length) {
-          res.innerHTML = '<div class="hint">这个仓库里有多个包，勾选要添加的（共 ' + det.candidates.length + ' 个' + (det.truncated ? '，仓库太大，列表可能不完整' : '') + '）：</div>'
-            + '<input id="cp-filter" type="search" placeholder="筛选" style="width:100%;margin:6px 0">'
-            + '<div id="cp-cands" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:4px 8px">'
-            + det.candidates.map(function (c) { const base = c.path.split('/').pop(); return '<label class="cp-cand" style="display:flex;gap:8px;padding:3px 0;font-size:13px"><input type="checkbox" data-path="' + escapeHtml(c.path) + '" style="width:auto"><span>' + escapeHtml(c.path) + (c.id !== base ? ' <b>→ 包名 ' + escapeHtml(c.id) + '</b>' : '') + ((c.requires || []).length ? ' <small>（同时包含 ' + escapeHtml(c.requires.join(', ')) + '）</small>' : '') + '</span></label>'; }).join('') + '</div>'
-            + '<label style="display:block;margin-top:8px">所选插件都额外需要的包（可选，逗号分隔）<input id="cp-req-dirs" placeholder="例如 video-support" style="width:100%"></label>'
-            + '<div class="hint">有的源码对某些包有额外要求（比如依赖 ffmpeg 的包要先启用 video-support），否则编译前校验会提示该包没生效，并告诉你该填什么。</div>'
-            + '<div style="text-align:right;margin-top:10px"><button class="primary" id="cp-add-dirs">添加所选</button></div>';
-          m.querySelector('#cp-filter').oninput = function (e) {
-            const q = e.target.value.trim().toLowerCase();
-            Array.prototype.forEach.call(m.querySelectorAll('.cp-cand'), function (l) { l.style.display = (!q || l.textContent.toLowerCase().indexOf(q) >= 0) ? 'flex' : 'none'; });
-          };
-        } else {
-          manualForm('没有在仓库里找到 Makefile，它可能不是 OpenWrt 软件包仓库。如果确定是，可以手动填写包名。');
-        }
-      } catch (e) { res.innerHTML = ''; reportApiError(e, '识别失败'); }
-    };
-    m.addEventListener('click', async function (e) {
-      const b = e.target; if (!b || !b.id && !(b.dataset && b.dataset.cpdel)) return;
-      const url = m.querySelector('#cp-url').value.trim(), br = (det && det.branch) || m.querySelector('#cp-branch').value.trim();
-      try {
-        if (b.id === 'cp-add-one') {
-          const body = { repo_url: url, branch: br, id: m.querySelector('#cp-id').value.trim(), name: m.querySelector('#cp-name').value.trim(), desc: m.querySelector('#cp-desc').value.trim(), requires: m.querySelector('#cp-req').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean) };
-          await after(await api.post('/api/custom-plugins', body));
-        } else if (b.id === 'cp-add-dirs') {
-          const dirs = Array.prototype.map.call(m.querySelectorAll('#cp-cands input:checked'), function (x) { const c = det.candidates.find(function (y) { return y.path === x.dataset.path; }); return { path: x.dataset.path, id: c ? c.id : '', requires: c ? c.requires : [] }; });
-          if (!dirs.length) { toast('请先勾选要添加的包', 'error'); return; }
-          const rq = m.querySelector('#cp-req-dirs').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-          await after(await api.post('/api/custom-plugins', { repo_url: url, branch: br, dirs: dirs, requires: rq }));
-        } else if (b.dataset && b.dataset.cpdel) {
-          await api.del('/api/custom-plugins/' + encodeURIComponent(b.dataset.cpdel));
-          STORE.sel.delete(b.dataset.cpdel);
-          await storeReloadCatalog(); storeDrawGrid(); storeDrawBasket();
-          m.querySelector('#cp-list').innerHTML = listHtml();
-        }
-      } catch (err) { reportApiError(err, '操作失败'); }
-    });
-  }
-
-  async function renderStorePage(tplId) {
-    const app = document.getElementById('app');
-    app.innerHTML = '<div id="toast-wrap" class="toast-wrap"></div>' + renderTopbar('store') + '<div class="content"><div id="store-area"><div class="hint">加载中…</div></div></div>';
-    bindTopbar(app);
+function projectModal() {
+  const rows = function () {
+    const c = S.projects.filter(function (p) { return !p.builtin; });
+    return c.length ? c.map(function (p) {
+      return '<div class="src-row"><code>' + esc(p.name) + '</code><span>' + esc(p.repo_url + ' @ ' + p.branch) + '</span>' +
+        '<button class="lnk danger" data-pjdel="' + esc(p.id) + '">删除</button></div>';
+    }).join('') : '<div class="hint">还没有自定义项目</div>';
+  };
+  const overlay = openModal('<div class="modal" style="max-width:560px"><div class="modal-head"><h3>自定义源码项目</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="hint">填 OpenWrt / ImmortalWrt / LEDE 或其它 OpenWrt 系源码仓库，平台和机型会直接从源码读取。</div>' +
+      '<div class="field"><label>项目名称</label><input class="input" id="pjName" placeholder="如 我的 ImmortalWrt" /></div>' +
+      '<div class="field"><label>仓库地址</label><input class="input mono" id="pjUrl" placeholder="https://github.com/用户/仓库" /></div>' +
+      '<div class="field"><label>分支</label><input class="input mono" id="pjBranch" value="master" /></div>' +
+      '<button class="btn btn-primary" id="pjAdd">添加</button>' +
+      '<div class="field" style="margin-top:4px"><label>已添加</label><div id="pjList">' + rows() + '</div></div>' +
+    '</div><div class="modal-foot"><button data-close>关闭</button></div></div>');
+  const refresh = async function () {
+    S.projects = (await api.projects()).projects || [];
+    drawProjects();
+    $('#pjList', overlay).innerHTML = rows();
+  };
+  $('#pjAdd', overlay).addEventListener('click', async function (ev) {
+    ev.currentTarget.disabled = true;
     try {
-      if (!STORE.loaded) {
-        storeApplyCatalog(await api.get('/api/catalog' + (STORE.refresh ? '?refresh=1' : '')));
-        STORE.refresh = false;
-      }
-      await storeLoadProjects();
-      if (tplId) { if (STORE.editId !== tplId) await storeEnterEdit(tplId); }
-      else if (STORE.editId) storeReset();
-    } catch (e) {
-      reportApiError(e, '加载失败');
-      if (tplId) navigate('#/templates');
-      return;
-    }
-    const editing = !!STORE.editId;
-    const area = document.getElementById('store-area');
-    area.innerHTML = (editing ? '<div class="detail-back"><button class="ghost small" id="st-back">‹ 返回模板</button></div>' : '')
-      + '<div class="page-head"><div><h1>' + (editing ? '编辑模板的机型和插件' : '插件商店') + '</h1><div class="hint">' + (editing ? '改完点右侧「保存到模板」，回到模板页再确认和编译。' : '选好设备和插件，点「生成模板」，到模板页确认无误后再编译。') + '</div><div class="hint">' + escapeHtml(STORE.meta) + ' <button class="ghost small" id="st-refresh">刷新目录</button></div></div></div>'
-      + '<div class="st-bar"><div class="st-field"><label>项目（源码）<select id="st-src"></select></label></div>'
-      + '<div class="st-field"><label>平台<select id="st-tgt"></select></label></div>'
-      + '<div class="st-field"><label>子平台<select id="st-sub"></select></label></div>'
-      + '<div class="st-field"><label>机型<select id="st-dev"></select></label><input id="st-devq" type="search" autocomplete="off" placeholder="筛选机型，如 RAX3000M" style="margin-top:6px"><div class="hint" id="st-profhint"></div></div></div>'
-      + '<div class="hint" id="st-devhint" style="margin:-8px 0 14px"></div>'
-      + '<div class="st-layout"><div><div class="st-presets">一键方案：' + Object.keys(STORE_PRESETS).map(function (k) { return '<button class="ghost small" data-preset="' + k + '">' + k + '</button>'; }).join('') + '</div>'
-      + '<div class="st-tools"><input id="st-q" type="search" placeholder="搜索插件，如 广告、下载、代理" value="' + escapeHtml(STORE.q) + '"><button class="ghost" id="st-addcp">＋ 添加 / 管理自定义插件</button></div>'
-      + '<div class="st-chips" id="st-chips"></div><div class="st-grid" id="st-grid"></div><div style="text-align:center;margin:14px" id="st-more"></div></div><aside class="st-basket" id="st-basket"></aside></div>';
-    storeDrawProjects();
-    document.getElementById('st-src').onchange = function (e) {
-      if (e.target.value === 'new') { e.target.value = String(STORE.pi); storeProjectModal(); return; }
-      STORE.pi = +e.target.value; storeLoadPlatforms(false);
-    };
-    document.getElementById('st-tgt').onchange = function (e) {
-      STORE.target = e.target.value; STORE.sub = ''; STORE.profile = ''; STORE.devQ = '';
-      const q = document.getElementById('st-devq'); if (q) q.value = '';
-      if (STORE.target) storeLoadPlatform(STORE.target, false);
-      else { STORE.cur = { id: '', subs: [], status: 'none', err: '', fetched: '' }; storeDrawSelects(); storeDrawHint(); storeDrawBasket(); }
-    };
-    document.getElementById('st-sub').onchange = function (e) {
-      STORE.sub = e.target.value; STORE.profile = ''; STORE.devQ = '';
-      const q = document.getElementById('st-devq'); if (q) q.value = '';
-      storeDrawSelects(); storeDrawBasket();
-    };
-    document.getElementById('st-dev').onchange = function (e) { STORE.profile = e.target.value; storeDrawSelects(); storeDrawBasket(); };
-    document.getElementById('st-devq').oninput = function (e) { STORE.devQ = e.target.value; storeDrawSelects(); };
-    document.getElementById('st-q').oninput = function (e) { STORE.q = e.target.value.trim().toLowerCase(); STORE.limit = 48; storeDrawGrid(); };
-    area.addEventListener('click', function (e) {
-      const t = e.target;
-      if (t.dataset.preset) { STORE.sel = new Set(STORE_PRESETS[t.dataset.preset].filter(function (id) { return !!storeBy(id); })); storeDrawGrid(); storeDrawBasket(); return; }
-      if (t.dataset.cat) { STORE.cat = t.dataset.cat; STORE.limit = 48; STORE.only = false; storeDrawGrid(); return; }
-      if (t.dataset.only) { STORE.only = !STORE.only; STORE.limit = 48; storeDrawGrid(); return; }
-      if (t.dataset.more) { STORE.limit += 48; storeDrawGrid(); return; }
-      if (t.dataset.rm) { storeToggle(t.dataset.rm); return; }
-      if (t.dataset.add) { storeToggle(t.dataset.add); return; }
-      if (t.id === 'st-devrefresh') { storeLoadPlatforms(true); return; }
-      if (t.id === 'st-refresh') { STORE.loaded = false; STORE.refresh = true; renderStorePage(tplId); return; }
-      if (t.id === 'st-addcp') { storeCustomPluginModal(); return; }
-      if (t.id === 'st-back') { storeReset(); navigate('#/template/' + tplId); return; }
-      if (t.id === 'st-go') { storeSave(); return; }
-      const c = t.closest ? t.closest('.st-card') : null;
-      if (c) storeDetail(c.dataset.id);
-    });
-    storeDrawSelects(); storeDrawHint(); storeDrawGrid(); storeDrawBasket();
-    storeLoadPlatforms(false);
-  }
-
-  function storeDrawProjects() {
-    const sel = document.getElementById('st-src'); if (!sel) return;
-    sel.innerHTML = STORE.projects.map(function (p, i) { return '<option value="' + i + '"' + (i === STORE.pi ? ' selected' : '') + '>' + escapeHtml((p.builtin ? '' : '★ ') + p.name) + '</option>'; }).join('') + '<option value="new">＋ 添加 / 管理自定义项目…</option>';
-  }
-
-  function storeProjectModal() {
-    function rows() {
-      const c = STORE.projects.filter(function (p) { return !p.builtin; });
-      return c.length ? c.map(function (p) { return '<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0"><b>' + escapeHtml(p.name) + '</b><div class="hint" style="word-break:break-all">' + escapeHtml(p.repo_url + ' @ ' + p.branch) + '</div></div><button class="ghost small" data-pr="del" data-id="' + p.id + '">删除</button></div>'; }).join('') : '<div class="hint">还没有自定义项目</div>';
-    }
-    const m = el('<div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:50;padding:16px"><div style="background:var(--panel);border-radius:14px;padding:20px;width:min(520px,94vw);max-height:90vh;overflow:auto"><h2 style="margin:0 0 4px">自定义项目</h2><div class="hint">填写你的 OpenWrt / ImmortalWrt / LEDE 或其它 OpenWrt 系源码的 GitHub 仓库和分支，添加时会立即检查，平台和机型直接从仓库源码读取。</div>'
-      + '<label style="display:block;margin-top:12px">项目名称<input id="pj-name" placeholder="如 我的 ImmortalWrt" style="width:100%"></label>'
-      + '<label style="display:block;margin-top:8px">仓库地址<input id="pj-url" placeholder="https://github.com/用户/仓库" style="width:100%"></label>'
-      + '<label style="display:block;margin-top:8px">分支<input id="pj-branch" value="master" style="width:100%"></label>'
-      + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="primary" id="pj-add">添加</button></div>'
-      + '<h3 style="margin:16px 0 4px;font-size:14px">已添加</h3><div id="pj-list">' + rows() + '</div>'
-      + '<div style="text-align:right;margin-top:14px"><button class="ghost" id="pj-close">关闭</button></div></div></div>');
-    document.body.appendChild(m);
-    async function refreshList() { await storeLoadProjects(); storeDrawProjects(); m.querySelector('#pj-list').innerHTML = rows(); }
-    m.querySelector('#pj-close').onclick = function () { m.remove(); };
-    m.querySelector('#pj-add').onclick = async function () {
-      const body = { name: m.querySelector('#pj-name').value.trim(), repo_url: m.querySelector('#pj-url').value.trim(), branch: m.querySelector('#pj-branch').value.trim() };
-      try {
-        const r = await api.post('/api/projects', body);
-        await refreshList();
-        STORE.pi = Math.max(0, STORE.projects.findIndex(function (p) { return p.id === r.project.id; }));
-        storeDrawProjects(); m.remove(); toast('已添加，正在读取平台列表', 'success');
-        STORE.target = ''; STORE.sub = ''; STORE.profile = ''; STORE.devText = ''; storeSyncInputs(); storeLoadPlatforms(false);
-      } catch (e) { reportApiError(e, '添加失败'); }
-    };
-    m.addEventListener('click', async function (e) {
-      const b = e.target; if (!b.dataset || b.dataset.pr !== 'del') return;
-      try { await api.del('/api/projects/' + b.dataset.id); await refreshList(); STORE.pi = 0; storeDrawProjects(); storeLoadPlatforms(false); }
-      catch (err) { reportApiError(err, '删除失败'); }
-    });
-  }
-
-  function storeDrawGrid() {
-    document.getElementById('st-chips').innerHTML = STORE.cats.map(function (c) {
-      const n = c === '全部' ? STORE.catalog.length : STORE.catalog.filter(function (p) { return p.cat === c; }).length;
-      return '<button class="ghost small" data-cat="' + c + '" aria-pressed="' + (!STORE.only && c === STORE.cat) + '">' + c + ' ' + n + '</button>';
-    }).join('') + '<button class="ghost small" data-only="1" aria-pressed="' + STORE.only + '">只看已选 ' + STORE.sel.size + '</button>';
-    const L = STORE.catalog.filter(function (p) {
-      if (STORE.only) return STORE.sel.has(p.id);
-      return (STORE.cat === '全部' || p.cat === STORE.cat) && (p.name + ' ' + p.desc + ' ' + p.id + ' ' + p.cat + ' ' + (STORE.kw[p.cat] || '') + ' ' + (p.tags || []).join(' ')).toLowerCase().indexOf(STORE.q) >= 0;
-    });
-    document.getElementById('st-grid').innerHTML = L.length ? L.slice(0, STORE.limit).map(function (p) {
-      const on = STORE.sel.has(p.id);
-      return '<article class="st-card" data-id="' + p.id + '"><div class="st-top"><div class="st-tile" style="background:hsl(' + storeHue(p.id) + ' 52% 40%)">' + escapeHtml(p.name.charAt(0).toUpperCase()) + '</div><div><h3>' + escapeHtml(p.name) + '</h3><code>' + p.id + '</code></div></div>'
-        + '<p>' + escapeHtml(p.desc) + '</p><div class="st-foot">' + (p.rec ? '<span class="badge dim">推荐内置</span>' : '') + (p.stale ? '<span class="badge warn">目录已无</span>' : (p.custom ? '<span class="badge dim">自定义</span>' : ((p.origin && p.origin.type !== 'builtin') ? '<span class="badge dim">第三方源</span>' : ''))) + '<span>' + (p.size_mb ? '约 ' + p.size_mb + ' MB' : '') + '</span>'
-        + '<button class="small ' + (on ? 'on' : 'ghost') + '" data-add="' + p.id + '">' + (on ? '已添加' : '添加') + '</button></div></article>';
-    }).join('') : '<div class="hint">没有匹配的插件，换个关键词或分类试试。</div>';
-    document.getElementById('st-more').innerHTML = L.length > STORE.limit ? '<button class="ghost" data-more="1">显示更多（还有 ' + (L.length - STORE.limit) + ' 个）</button>' : '';
-  }
-
-  function storeConfigPreview() {
-    const NL = String.fromCharCode(10), lines = [];
-    if (STORE.profile && STORE_TARGET_RE.test(storeTargetStr())) { const m = storeTargetStr().split('/'); lines.push('CONFIG_TARGET_' + m[0] + '=y', 'CONFIG_TARGET_' + m[0] + '_' + m[1] + '=y', 'CONFIG_TARGET_' + m[0] + '_' + m[1] + '_DEVICE_' + STORE.profile + '=y'); }
-    storeSelected().forEach(function (p) { lines.push('CONFIG_PACKAGE_' + p.id + '=y'); (p.requires || []).forEach(function (r) { lines.push('CONFIG_PACKAGE_' + r + '=y'); }); });
-    return lines.join(NL);
-  }
-
-  function storeAutoName() {
-    const proj = storeProject();
-    return '商店 · ' + (proj ? proj.name : '') + ' · ' + (storeTargetStr() || '未选平台') + ' · ' + (STORE.profile || '未选机型');
-  }
-
-  function storeDrawBasket() {
-    const box = document.getElementById('st-basket'); if (!box) return;
-    const ph = document.getElementById('st-profhint');
-    if (ph) ph.textContent = STORE.profile ? 'profile：' + STORE.profile : '';
-    const S = storeSelected(), mb = 7 + S.reduce(function (a, p) { return a + (p.size_mb || 0); }, 0);
-    const deps = new Set(); S.forEach(function (p) { (p.deps || []).forEach(function (d) { deps.add(d); }); });
-    const px = S.filter(function (p) { return p.cat === '代理'; });
-    const warns = [];
-    if (px.length > 1) warns.push('已选 ' + px.length + ' 个代理插件，通常只需要一个，同时启用容易冲突。');
-    if (!storeTargetStr() || !STORE_TARGET_RE.test(storeTargetStr())) warns.push('请先选择平台和子平台。');
-    else if (!STORE.profile) warns.push('请选择机型。');
-    if (STORE.profile && storeCurSub() && !storeDevices().some(function (d) { return d.id === STORE.profile; })) warns.push('这个机型不在所选子平台的源码列表里（模板里原有的值），建议重新选择。');
-    if (STORE.profile && !STORE_PROFILE_RE.test(STORE.profile)) warns.push('机型 profile 只能包含字母、数字和 . _ + -');
-    const nStale = S.filter(function (p) { return p.stale; }).length;
-    if (nStale) warns.push(nStale + ' 个插件已不在目录里，会按原包名尝试启用，编译时校验是否生效。');
-    const proj = storeProject();
-    const nm = STORE.nameDirty ? STORE.tplName : storeAutoName();
-    box.innerHTML = '<h2>固件清单</h2><div class="hint">' + escapeHtml((proj ? proj.name : '') + ' · ' + (storeTargetStr() || '未选平台') + ' · ' + (STORE.profile || '未选机型')) + '</div><ul>' + S.map(function (p) { return '<li>' + escapeHtml(p.name) + '<button data-rm="' + escapeHtml(p.id) + '" aria-label="移除">×</button></li>'; }).join('') + '</ul>'
-      + '<div class="st-sum"><span><b>' + S.length + '</b>插件</span><span><b>' + deps.size + '</b>自动依赖</span><span><b>' + mb.toFixed(1) + '</b>已知体积 MB</span></div>' + warns.map(function (w) { return '<div class="st-warn">' + escapeHtml(w) + '</div>'; }).join('')
-      + '<label class="hint" style="display:block">模板名称<input id="st-name" maxlength="80" value="' + escapeHtml(nm) + '" style="margin-top:4px"></label>'
-      + '<details><summary class="hint">查看将写入的配置行</summary><textarea readonly>' + escapeHtml(storeConfigPreview()) + '</textarea></details>'
-      + '<button class="primary" id="st-go"' + (STORE.busy ? ' disabled' : '') + '>' + (STORE.busy ? '保存中…' : (STORE.editId ? '保存到模板' : '生成模板')) + '</button>'
-      + '<div class="hint">不会立即编译，下一页确认后再点编译。</div>';
-    document.getElementById('st-name').oninput = function (e) { STORE.tplName = e.target.value; STORE.nameDirty = true; };
-  }
-
-  function storeDetail(id) {
-    const p = storeBy(id); if (!p) return;
-    const on = STORE.sel.has(id), o = storeOrigin(p);
-    const m = el('<div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:50"><div style="background:var(--panel);border-radius:14px;padding:20px;width:min(460px,92vw)"><h2 style="margin:0">' + escapeHtml(p.name) + '</h2><code class="hint">' + p.id + '</code><p>' + escapeHtml(p.desc) + '</p>' + (p.tut ? '<p><b>使用提示：</b>' + escapeHtml(p.tut) + '</p>' : '') + '<p><b>依赖：</b>' + (p.deps.length ? escapeHtml(p.deps.join('、')) : '无') + '（由编译系统自动解决）</p>' + (o ? '<p><b>来源：</b>' + escapeHtml(o.git_url || o.feed) + '</p>' : '') + '<div style="display:flex;gap:8px;justify-content:flex-end">' + (p.custom && !p.stale ? '<button class="ghost" id="st-ddel" style="margin-right:auto">删除这个自定义插件</button>' : '') + '<button class="ghost" id="st-dx">关闭</button><button class="primary" id="st-da">' + (on ? '从固件移除' : '添加到固件') + '</button></div></div></div>');
-    document.body.appendChild(m);
-    m.querySelector('#st-dx').onclick = function () { m.remove(); };
-    m.querySelector('#st-da').onclick = function () { storeToggle(id); m.remove(); };
-    const del = m.querySelector('#st-ddel');
-    if (del) del.onclick = async function () {
-      if (!confirm('删除自定义插件「' + p.name + '」？已保存的模板不受影响。')) return;
-      try {
-        await api.del('/api/custom-plugins/' + encodeURIComponent(id));
-        STORE.sel.delete(id); await storeReloadCatalog();
-        if (STORE.cat !== '全部' && STORE.cats.indexOf(STORE.cat) < 0) STORE.cat = '全部';
-        m.remove(); storeDrawGrid(); storeDrawBasket(); toast('已删除', 'success');
-      } catch (e) { reportApiError(e, '删除失败'); }
-    };
-  }
-
-  // 把所选插件的来源合并：同一个 feed 只写一次，同一个仓库的多个子目录合成一次稀疏克隆
-  function storeMergePlugins(S) {
-    const out = [], idx = {};
-    S.forEach(function (p) {
-      const o = storeOrigin(p); if (!o) return;
-      if (o.feed) { const k = 'f|' + o.feed; if (!idx[k]) { idx[k] = o; out.push(o); } return; }
-      if (o.sparse) {
-        const k = 's|' + o.git_url + '|' + o.branch;
-        if (idx[k]) { o.dirs.forEach(function (d) { if (idx[k].dirs.indexOf(d) < 0) idx[k].dirs.push(d); }); }
-        else { o.dirs = o.dirs.slice(); idx[k] = o; out.push(o); }
-        return;
-      }
-      const k = 'g|' + o.git_url + '|' + o.name;
-      if (!idx[k]) { idx[k] = o; out.push(o); }
-    });
-    return out;
-  }
-
-  // 只保存模板，不触发编译；保存后跳到模板页确认
-  async function storeSave() {
-    if (STORE.busy) return;
-    const proj = storeProject(), target = storeTargetStr(), profile = (STORE.profile || '').trim();
-    if (!STORE_TARGET_RE.test(target)) { toast('请先选择平台和子平台', 'error'); return; }
-    if (!profile) { toast('请选择机型', 'error'); return; }
-    if (!STORE_PROFILE_RE.test(profile)) { toast('机型 profile 格式不正确', 'error'); return; }
-    let name = (STORE.nameDirty ? STORE.tplName : storeAutoName()).trim();
-    if (!name) { toast('请填写模板名称', 'error'); return; }
-    const S = storeSelected(), pk = new Set();
-    S.forEach(function (p) { pk.add(p.id); (p.requires || []).forEach(function (r) { pk.add(r); }); });
-    const packages = Array.from(pk);
-    const selection = S.map(function (p) { return p.id; });
-    const plugins = storeMergePlugins(S);
-    STORE.busy = true; storeDrawBasket();
+      const r = await api.addProject({ name: $('#pjName', overlay).value.trim(), repo_url: $('#pjUrl', overlay).value.trim(), branch: $('#pjBranch', overlay).value.trim() });
+      await refresh();
+      S.pi = Math.max(0, S.projects.findIndex(function (p) { return p.id === r.project.id; }));
+      drawProjects();
+      closeModal(overlay);
+      toast('已添加项目', '正在读取平台列表', 'info');
+      S.target = ''; S.sub = ''; S.profile = '';
+      loadPlatforms(true);
+    } catch (e) { fail(e, '添加失败'); ev.currentTarget.disabled = false; }
+  });
+  overlay.addEventListener('click', async function (ev) {
+    const t = ev.target.closest('[data-pjdel]');
+    if (!t) return;
     try {
-      const body = { name: name, repo_url: proj.repo_url, branch: proj.branch, target: target, profile: profile, project_id: proj.id, plugins: plugins, packages: packages, selection: selection };
-      let id = STORE.editId;
-      if (id) { await api.updateTemplate(id, body); }
-      else {
-        const lt = await api.listTemplates(), base = name; let n = 1;
-        while (lt.templates.some(function (x) { return x.name === name; })) { n++; name = base + ' (' + n + ')'; }
-        body.name = name;
-        id = (await api.createTemplate(body)).template.id;
-      }
-      const wasEdit = !!STORE.editId;
-      STORE.busy = false; storeReset();
-      toast(wasEdit ? '已保存到模板' : '模板已生成，请确认后再编译', 'success');
-      navigate('#/template/' + id);
-    } catch (e) { STORE.busy = false; reportApiError(e, '保存失败'); storeDrawBasket(); }
-  }
+      await api.delProject(t.dataset.pjdel);
+      await refresh();
+      S.pi = 0; drawProjects(); loadPlatforms(true);
+    } catch (e) { fail(e, '删除失败'); }
+  });
+}
 
-  async function bootAfterLogin() {
-    try { const { templates } = await api.listTemplates(); store.templates = templates; } catch {}
+/* ---------------- 编译记录页 ---------------- */
+async function viewBuilds() {
+  const view = $('#view');
+  view.innerHTML = '<header class="page-head"><div><div class="eyebrow">WORKSPACE <b>/</b> BUILDS</div><h1>编译记录</h1>' +
+    '<div class="sub">手动和定时任务都在这里，失败的会直接给出原因。</div></div>' +
+    '<div class="actions"><button class="btn" id="bRefresh">' + ic('refresh') + '刷新</button></div></header>' +
+    '<div id="bArea"><div class="loading">' + ic('refresh') + '<span>读取记录…</span></div></div>';
+  $('#bRefresh').addEventListener('click', async function (ev) {
+    ev.currentTarget.disabled = true;
+    await refreshBuilds().catch(function () { });
+    drawBuildsList();
+    ev.currentTarget.disabled = false;
+  });
+  try { await refreshBuilds(); } catch (e) {
+    $('#bArea').innerHTML = '<div class="empty"><div class="g">' + ic('alert') + '</div><div class="m">读取失败</div><div class="s">' + esc(e.message) + '</div></div>';
+    return;
+  }
+  if (S.route.name !== 'builds') return;
+  drawBuildsList();
+}
+function drawBuildsList() {
+  const area = $('#bArea');
+  if (!area) return;
+  const counts = { all: S.builds.length, active: 0, success: 0, failed: 0 };
+  S.builds.forEach(function (b) {
+    if (ACTIVE.indexOf(b.status) >= 0) counts.active++;
+    else if (b.status === 'success') counts.success++;
+    else if (b.status === 'failed') counts.failed++;
+  });
+  const segs = [['all', '全部', counts.all], ['active', '进行中', counts.active], ['success', '成功', counts.success], ['failed', '失败', counts.failed]];
+  const list = S.builds.filter(function (b) {
+    if (S.bfilter === 'active') return ACTIVE.indexOf(b.status) >= 0;
+    if (S.bfilter === 'success') return b.status === 'success';
+    if (S.bfilter === 'failed') return b.status === 'failed';
+    return true;
+  });
+  area.innerHTML = '<div class="filter-bar" style="margin-bottom:14px"><div class="seg">' +
+    segs.map(function (s) { return '<button class="' + (S.bfilter === s[0] ? 'on' : '') + '" data-bf="' + s[0] + '">' + s[1] + ' <span class="n">' + s[2] + '</span></button>'; }).join('') +
+    '</div><span class="hint" style="margin-left:auto">最多显示最近 50 条</span></div>' +
+    (list.length ? list.map(function (b) { return buildCard(b, false); }).join('')
+      : '<div class="empty"><div class="g">' + ic('pulse') + '</div><div class="m">' + (S.builds.length ? '没有符合条件的记录' : '还没有任何编译记录') + '</div>' +
+        '<div class="s">' + (S.builds.length ? '换个筛选条件试试' : '去模板页点一次「编译」') + '</div></div>');
+  $$('[data-bf]', area).forEach(function (b) {
+    b.addEventListener('click', function () { S.bfilter = b.dataset.bf; drawBuildsList(); });
+  });
+}
+async function refreshBuilds() {
+  const r = await api.builds();
+  S.builds = r.builds || [];
+  drawQueue();
+  const badge = $('.nav-badge');
+  const n = activeBuilds().length;
+  if (badge) { badge.textContent = n; badge.hidden = !n; }
+  else if (n) {
+    const item = $('[data-nav="builds"]');
+    if (item) item.insertAdjacentHTML('beforeend', '<span class="nav-badge">' + n + '</span>');
+  }
+}
+function rerenderCurrent() {
+  const r = S.route;
+  if (r.name === 'templates') drawTemplates();
+  else if (r.name === 'builds') drawBuildsList();
+  else if (r.name === 'template') {
+    const box = $('#tplBuilds');
+    if (box) { const t = tplById(r.params.id); if (t) drawTplBuilds(t); }
+  }
+}
+function startPoll() {
+  stopPoll();
+  S.poll = setInterval(async function () {
+    if (document.hidden || !S.authed) return;
+    const had = activeBuilds().length;
+    try {
+      await refreshBuilds();
+      if (had || activeBuilds().length) rerenderCurrent();
+    } catch (e) { /* 网络抖动时静默 */ }
+  }, 12000);
+}
+function stopPoll() { if (S.poll) { clearInterval(S.poll); S.poll = null; } }
+
+/* ---------------- 设置页 ---------------- */
+async function viewSettings() {
+  const view = $('#view');
+  view.innerHTML = '<header class="page-head"><div><div class="eyebrow">SYSTEM <b>/</b> SETTINGS</div><h1>设置</h1>' +
+    '<div class="sub">GitHub 连接、凭据轮换和一些不可逆操作。</div></div></header><div id="setArea"><div class="loading">' + ic('refresh') + '<span>读取配置…</span></div></div>';
+  let s;
+  try { s = await api.settings(); }
+  catch (e) {
+    $('#setArea').innerHTML = '<div class="empty"><div class="g">' + ic('alert') + '</div><div class="m">读取失败</div><div class="s">' + esc(e.message) + '</div></div>';
+    return;
+  }
+  if (S.route.name !== 'settings') return;
+  $('#setArea').innerHTML = '<div class="settings-grid">' +
+    '<section class="card"><div class="card-head"><div><h2>GitHub 连接</h2><div class="sub">Worker 通过它触发 Actions</div></div>' +
+      '<span class="pill ok">已连接</span></div><div class="card-pad">' +
+      '<div class="dl"><span class="k">编译仓库</span><span class="v mono">' + esc(s.github_repo || '—') + '</span></div>' +
+      '<div class="dl"><span class="k">Worker URL</span><span class="v mono">' + esc(s.worker_url || location.origin) + '</span></div>' +
+      '<div class="dl"><span class="k">GitHub Token</span><span class="v mono">' + esc(s.github_token_masked || '—') + '</span></div>' +
+      '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+        '<button class="btn" id="setReconf">' + ic('edit') + '重新配置</button>' +
+        '<button class="btn" id="setToken">' + ic('refresh') + '重置 REPORT_TOKEN</button>' +
+      '</div>' +
+      '<div class="hint" style="margin-top:10px">重置 REPORT_TOKEN 后旧的立即失效，需要去 GitHub 仓库 Secrets 里更新。</div>' +
+    '</div></section>' +
+    '<section class="card"><div class="card-head"><div><h2>外观</h2><div class="sub">偏好保存在本地浏览器</div></div></div><div class="card-pad">' +
+      '<div class="opt-row" style="padding-top:0"><div><div class="t">深色模式</div><div class="d">夜间看编译日志更舒服。</div></div>' +
+        '<div class="c"><label class="switch"><input type="checkbox" id="setDark"' + (isDark() ? ' checked' : '') + '><span class="track"></span></label></div></div>' +
+      '<div class="opt-row"><div><div class="t">当前版本</div><div class="d">固件工坊 owrt-forge · Worker + D1 + GitHub Actions</div></div>' +
+        '<div class="c"><span class="tag">单页应用</span></div></div>' +
+    '</div></section>' +
+    '<section class="card"><div class="card-head"><div><h2>帮助</h2></div></div><div class="card-pad">' +
+      '<div class="hint">• 同一时间只跑一个编译任务，新任务会排队。<br />' +
+      '• 定时编译不会进入 menuconfig，会按模板里的机型和插件清单重新生成配置。<br />' +
+      '• 自定义插件会执行对应仓库的代码，只添加你信任的来源。<br />' +
+      '• ccache 存在编译仓库的 Release 里，公开仓库任何人都能下载。</div>' +
+    '</div></section>' +
+    '<section class="card danger-card"><div class="card-head"><div><h2>危险区域</h2><div class="sub">操作不可撤销</div></div></div><div class="card-pad">' +
+      '<div class="opt-row" style="padding-top:0"><div><div class="t">重置所有配置</div><div class="d">清空 GitHub 连接和登录密码，系统回到初始化状态。</div></div>' +
+      '<div class="c"><button class="btn btn-danger" id="setResetAll">重置</button></div></div>' +
+    '</div></section>' +
+  '</div>';
+
+  $('#setReconf').addEventListener('click', function () { renderAuth('wizard', { reconfigure: true }); });
+  $('#setToken').addEventListener('click', async function () {
+    const ok = await confirmBox({ title: '重置 REPORT_TOKEN', body: '旧的 REPORT_TOKEN 会立即失效，需要马上去 GitHub 仓库更新 Secret，否则编译结果无法回传。', ok: '重置', danger: true });
+    if (!ok) return;
+    try {
+      const r = await api.resetToken();
+      openModal('<div class="modal"><div class="modal-head"><h3>新的 REPORT_TOKEN</h3><button class="btn btn-sm btn-ghost" data-close>' + ic('x') + '</button></div>' +
+        '<div class="modal-body"><div class="note">' + ic('alert') + '<span>去 GitHub → Settings → Secrets → Actions，把 <code>REPORT_TOKEN</code> 更新成下面这串。关掉窗口后不再显示明文。</span></div>' +
+        '<div class="token-box"><code>' + esc(r.report_token) + '</code><button class="btn btn-sm" id="tkCopy">' + ic('copy') + '复制</button></div></div>' +
+        '<div class="modal-foot"><button class="btn btn-primary" data-close>我知道了</button></div></div>', {
+        onMount: function (root) { $('#tkCopy', root).addEventListener('click', function () { copyText(r.report_token); }); },
+      });
+    } catch (e) { fail(e, '重置失败'); }
+  });
+  $('#setDark').addEventListener('change', toggleTheme);
+  $('#setResetAll').addEventListener('click', async function () {
+    const ok = await confirmBox({ title: '重置所有配置', body: '这会清空 GitHub 连接、REPORT_TOKEN 和登录密码，系统回到初始化状态。模板和编译记录不会删除。', ok: '确认重置', danger: true });
+    if (!ok) return;
+    try {
+      await api.resetSettings('all');
+      S.authed = false; S.status = 'uninitialized';
+      stopPoll();
+      renderAuth('init');
+    } catch (e) { fail(e, '重置失败'); }
+  });
+}
+
+/* ---------------- 渲染与启动 ---------------- */
+function render() {
+  if (S.status === 'uninitialized') { renderAuth('init'); return; }
+  if (!S.authed) { renderAuth('login'); return; }
+  if (S.status === 'wizard') { renderAuth('wizard'); return; }
+  const r = S.route;
+  const active = r.name === 'template' ? 'template' : r.name;
+  mountShell(active);
+  if (r.name === 'template') viewDetail(r.params.id);
+  else if (r.name === 'store') viewStore(r.params.tpl);
+  else if (r.name === 'builds') viewBuilds();
+  else if (r.name === 'settings') viewSettings();
+  else viewTemplates();
+}
+async function bootData() {
+  try {
+    const r = await api.templates();
+    S.templates = r.templates || [];
+  } catch (e) { /* 首次可能未登录 */ }
+  try { await refreshBuilds(); } catch (e) { /* 忽略 */ }
+  render();
+  startPoll();
+}
+
+(function boot() {
+  try { const t = localStorage.getItem('owf-theme'); if (t === 'dark' || t === 'light') S.theme = t; } catch (e) { /* 忽略 */ }
+  applyTheme();
+  if (!document.getElementById('toasts')) {
+    const w = document.createElement('div');
+    w.className = 'toasts';
+    w.id = 'toasts';
+    document.body.appendChild(w);
+  }
+  S.route = parseHash();
+  window.addEventListener('hashchange', function () {
+    const next = parseHash();
+    if (next.name === S.route.name && next.params.id === S.route.params.id && next.params.tpl === S.route.params.tpl) return;
+    S.route = next;
     render();
-  }
-  
-  function render() {
-    if (store.systemStatus === 'uninitialized') { renderSetupInit(); return; }
-    if (!store.authed) { renderLogin(); return; }
-    if (store.systemStatus === 'wizard') { renderSetupWizard(); return; }
-    if (store.pollTimer) { clearInterval(store.pollTimer); store.pollTimer = null; }
-    const { name, params } = store.route;
-    if (name === 'template-detail') renderTemplateDetailPage(params.id);
-    else if (name === 'store') renderStorePage(params.tpl);
-    else if (name === 'builds') renderBuildsPage();
-    else renderTemplatesPage();
-  }
-  
-  async function boot() {
-    store.route = parseHash();
-    try {
-      const { status } = await api.setupStatus();
-      store.systemStatus = status;
-    } catch {
-      store.systemStatus = 'ready';
-    }
-    if (store.systemStatus === 'uninitialized') { render(); return; }
-    // 修复：去掉冗余的双重赋值，任何错误（包括 401）都先展示登录页，避免卡死在白屏
-    try {
-      await api.listTemplates();
-      store.authed = true;
-    } catch {
-      store.authed = false;
-    }
-    render();
-  }
-  
-  boot();
+  });
+
+  api.setupStatus().then(function (r) {
+    S.status = r.status;
+    if (S.status === 'uninitialized') { renderAuth('init'); return; }
+    return api.templates().then(function () { S.authed = true; }).catch(function () { S.authed = false; });
+  }, function () {
+    S.status = 'ready';
+  }).then(function () {
+    if (S.status === 'uninitialized') return;
+    if (!S.authed) { renderAuth('login'); return; }
+    if (S.status === 'wizard') { renderAuth('wizard'); return; }
+    bootData();
+  });
+})();
+
   `;
   
   // ============================================================
@@ -3742,7 +4728,7 @@ function json(data, status = 200, extraHeaders = {}) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenWrt 自动编译</title>
+    <title>固件工坊 · OpenWrt 编译台</title>
     <style>${APP_CSS}</style>
   </head>
   <body>
