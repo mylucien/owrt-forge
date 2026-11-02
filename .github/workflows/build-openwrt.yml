@@ -134,12 +134,15 @@ jobs:
         env:
           USE_CCACHE: "${{ steps.config.outputs.use_ccache }}"
           CCACHE_MAXSIZE: "8G"
-          # 用「目标架构 + 完整版本号」当编译器指纹，而不是对编译器二进制取内容哈希（content）。
+          # 用「版本号」当编译器指纹，而不是对编译器二进制取内容哈希（content）。
           # 交叉工具链是每台编译机现编的，content 会把「换镜像 / 换宿主 gcc 小版本」变成整份缓存失效；
-          # 版本串只跟 gcc 版本和 target 走，同版本跨机也能命中。
+          # 版本串只跟 gcc 版本走，同版本跨机也能命中。
+          # 注意只能给一个 -dump 选项：gcc 只处理第一个，`-dumpmachine -dumpfullversion` 只会输出三元组，
+          # 版本号被吞掉，那就等于指纹里没有版本，gcc 升级后旧缓存会被错误复用。
+          # （clang 不认 -dumpfullversion，会跳过那次缓存；目标代码不经过 clang 调用，碰不到。）
           # 代价：同版本但配置不同的工具链会被视为同一个编译器 —— ccache 本身把命令行参数算进 key，风险可控。
           # 改这一项会让已有缓存全部失效一次，第一轮命中率会掉，属预期。
-          CCACHE_COMPILERCHECK: '%compiler% -dumpmachine -dumpfullversion'
+          CCACHE_COMPILERCHECK: '%compiler% -dumpfullversion'
         run: |
           cd openwrt
           set -o pipefail
@@ -156,7 +159,7 @@ jobs:
         env:
           # 统计是单独的 step，不会继承「编译」步骤的 env；不带上这两个值，-s 里显示的上限会是 ccache 默认的 5G
           CCACHE_MAXSIZE: "8G"
-          CCACHE_COMPILERCHECK: '%compiler% -dumpmachine -dumpfullversion'
+          CCACHE_COMPILERCHECK: '%compiler% -dumpfullversion'
         run: bash "$SCRIPTS_DIR/cache.sh" stats
 
       - name: 汇总编译耗时

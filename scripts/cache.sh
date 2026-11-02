@@ -10,14 +10,14 @@
 # - 每个分卷有 sha256 校验清单（ccache.sha256）；发布后会核对 Release 上的文件数和大小，
 #   不完整就删掉，避免留下坏缓存。
 # - 页面上的缓存标识可能指向已被清理的老缓存，也可能属于别的机型：restore 先确认 Release 还在、
-#   再读 meta 看 target/profile，对不上就在最近的几份里找「同机型最新的一份」，
-#   一份同机型的都没有才退到最新一份。以前直接退到「全仓库最新一份」，多机型时会拿错（run #91 就是这样）。
+#   再读 meta 看 target/profile，挑「同机型最新 → 同平台不同机型 → 最新一份」里第一个能用的。
+#   以前直接退到「全仓库最新一份」，多机型时会拿错（run #91 就是这样）。
 # - 发布时额外写一份 ccache.meta.json（目标 / 机型 / 源码 commit / .config 摘要 / ccache 版本 /
-#   截至本轮结束的累计命中）；恢复时先拉它比对，机型不同就不下分卷，并把累计命中记下来供 stats 算本轮。
-# - 清理按机型分组：每个 target+profile 只留最新 KEEP 份，不同机型互不挤占。
+#   截至本轮结束的累计命中）；恢复时先拉它比对，目标不同就不下分卷，并把累计命中记下来供 stats 算本轮。
+# - 清理按机型分组：每个 target 只留最新 KEEP 份，不同机型互不挤占。
 set -uo pipefail
 
-KEEP=2                                   # 每个机型（target+profile）保留几份；不是全仓库合计
+KEEP=2                                   # 每个机型（target）保留几份；不是全仓库合计
 CANDS="${CACHE_CANDS:-6}"                # 兜底挑选时最多探测几份缓存（每份只下几十字节的 meta）
 PART_SIZE="${CACHE_PART_SIZE:-1900M}"   # 1900MiB < 2GiB 的单文件上限；CACHE_PART_SIZE 仅供测试
 MAX_PARTS=8
@@ -68,26 +68,33 @@ row_match() {
   [ -z "$mp" ] || [ -z "$cp" ] || [ "$mp" = "$cp" ]
 }
 
-# 挑选要恢复的缓存，结果放在 PICK_TAG。
+# 挑选要恢复的缓存，结果放在 PICK_TAG，理由放在 PICK_WHY。
 # 规则：
-#   1) 页面上指定的那份还在、而且同机型 → 直接用；
-#   2) 指定的那份是同机型但已被清理 / 是别的机型 / 是 latest → 在最近 CANDS 份里挑同机型最新的一份；
-#   3) 一份同机型的都没有 → 退到最新一份（老缓存没有 meta 时无法判断机型，只能这样）。
+#   1) 页面上指定的那份还在、而且同机型 → 直接用；是没 meta 的老缓存 → 也直接用（无法判断，只能信它的标识）；
+#   2) 指定的那份已被清理 / 是别的机型 / 是 latest → 在最近 CANDS 份里挑同机型最新的一份；
+#   3) 没有同机型的 → 退到同平台（target 相同、机型不同）最新的一份：profile 只影响编了哪些包，
+#      没变的包目标代码是一样的，大部分对象仍可命中；
+#   4) 连同平台的都没有 → 用最新一份（restore 那边会按 target 硬拦掉）。
 # 之前直接取「全仓库最新一份」，多机型轮流编译时会把另一个机型的缓存塞过来，meta 比对后整轮没有缓存。
 PICK_TAG=""
+PICK_WHY=""
 choose() {
-  local want="$1" ct="$2" cp="$3" tag row newest="" n=0
-  PICK_TAG=""
+  local want="$1" ct="$2" cp="$3" tag row newest="" n=0 lo_t="" lo_p=""
+  PICK_TAG=""; PICK_WHY=""
   if [ -n "$want" ] && [ "$want" != "latest" ] && ! [[ "$want" =~ ^cache-[A-Za-z0-9_-]{8,64}$ ]]; then
     warn "缓存：标识 $want 不合法，改为自动挑选"; want=""
   fi
   if [ -n "$want" ] && [ "$want" != "latest" ] && tag_exists "$want"; then
     row=$(meta_row "$want")
-    if row_match "$row" "$ct" "$cp"; then PICK_TAG="$want"; return 0; fi
-    local mt mp; mt=$(printf '%s' "$row" | cut -f1); mp=$(printf '%s' "$row" | cut -f2)
-    if [ -n "$row" ]; then
-      note "缓存：指定的 $want 是为 $mt / $mp 编的，和本次 $ct / $cp 不同，改在同机型的缓存里找"
+    if [ -z "$row" ]; then
+      # 本次改动之前发布的缓存没有 meta，没有机型信息可核对。用户明确指定了，就用它，
+      # 而不是悄悄换成别的——否则「指定了却没生效」会让人以为缓存坏了。
+      PICK_TAG="$want"; PICK_WHY="这份缓存没有机型信息，无法核对，按你指定的用"; return 0
     fi
+    if row_match "$row" "$ct" "$cp"; then
+      PICK_TAG="$want"; PICK_WHY="你指定的，同机型"; return 0
+    fi
+    note "缓存：指定的 $want 是为 $(printf '%s' "$row" | cut -f1) / $(printf '%s' "$row" | cut -f2) 编的，和本次 $ct / $cp 不同，改为自动挑选"
   elif [ -n "$want" ] && [ "$want" != "latest" ]; then
     note "缓存：$want 不可用（可能已被清理），改为自动挑选"
   fi
@@ -97,10 +104,21 @@ choose() {
     n=$((n + 1)); [ "$n" -le "$CANDS" ] || break
     [ -n "$newest" ] || newest="$tag"
     row=$(meta_row "$tag")
-    if row_match "$row" "$ct" "$cp"; then PICK_TAG="$tag"; return 0; fi
+    [ -n "$row" ] || continue
+    if row_match "$row" "$ct" "$cp"; then
+      PICK_TAG="$tag"; PICK_WHY="同机型最新的一份"; return 0
+    fi
+    # 记住第一份同平台（target 相同）的，作为同机型找不到时的次选
+    if [ -z "$lo_t" ] && [ "$(printf '%s' "$row" | cut -f1)" = "$ct" ]; then
+      lo_t="$tag"; lo_p=$(printf '%s' "$row" | cut -f2)
+    fi
   done < <(list_cache_tags)
 
+  if [ -n "$lo_t" ]; then
+    PICK_TAG="$lo_t"; PICK_WHY="同平台里最新的一份，机型 $lo_p ≠ 本次 $cp，没改到的包仍可命中"; return 0
+  fi
   PICK_TAG="$newest"
+  [ -n "$PICK_TAG" ] && PICK_WHY="仓库里最新的一份，不是同平台，可能一份也命不中"
   return 0
 }
 
@@ -119,7 +137,9 @@ restore() {
   local TAG="$PICK_TAG"
   if [ -z "$TAG" ]; then warn "缓存：仓库里没有可用的缓存，本次不用缓存"; return 0; fi
   if [ "$TAG" != "$CACHE_TAG" ]; then
-    note "缓存：改用 $TAG（同机型缓存里最新的一份）"
+    note "缓存：改用 $TAG（$PICK_WHY）"
+  elif [ -n "$PICK_WHY" ] && [ "$PICK_WHY" != "你指定的，同机型" ]; then
+    note "缓存：使用 $TAG（$PICK_WHY）"
   fi
 
   local D=/tmp/cache-dl X=/tmp/cache-x E=/tmp/cache-restore.err
@@ -130,9 +150,14 @@ restore() {
   if [ -f "$D/ccache.meta.json" ]; then
     local mt mp mc cur
     mt=$(meta target "$D/ccache.meta.json"); mp=$(meta profile "$D/ccache.meta.json"); mc=$(meta commit "$D/ccache.meta.json")
-    if [ -n "$mt" ] && { [ "$mt" != "$CT" ] || { [ -n "$mp" ] && [ -n "$CP" ] && [ "$mp" != "$CP" ]; }; }; then
-      warn "缓存：$TAG 是为 $mt / $mp 编的，和本次 $CT / $CP 不同，跳过（缓存只对同一目标 + 机型有用）"
+    # 目标不同就没意义（不同的架构，目标代码对不上）；机型不同仍然可用——profile 只改变编哪些包，
+    # 没变的包命令行和目标架构完全一样，ccache 的 key 也就一样。
+    if [ -n "$mt" ] && [ "$mt" != "$CT" ]; then
+      warn "缓存：$TAG 是为 $mt 编的，和本次 $CT 不同，跳过（缓存只对同一目标有用）"
       rm -rf "$D" "$X"; return 0
+    fi
+    if [ -n "$mp" ] && [ -n "$CP" ] && [ "$mp" != "$CP" ]; then
+      note "缓存：$TAG 的机型是 $mp，本次是 $CP（同平台不同机型，只有两边都编的包能命中）"
     fi
     cur=$(git -C openwrt rev-parse --short=8 HEAD 2>/dev/null || echo '')
     if [ -n "$mc" ] && [ -n "$cur" ] && [ "$mc" != "$cur" ]; then
