@@ -147,6 +147,10 @@ jobs:
       - name: ccache 统计
         if: ${{ !cancelled() && steps.make.outcome != 'skipped' && steps.config.outputs.use_ccache == 'true' }}
         continue-on-error: true
+        env:
+          # 统计是单独的 step，不会继承「编译」步骤的 env；不带上这两个值，-s 里显示的上限会是 ccache 默认的 5G
+          CCACHE_MAXSIZE: "8G"
+          CCACHE_COMPILERCHECK: "content"
         run: bash "$SCRIPTS_DIR/cache.sh" stats
 
       - name: 打包产物
