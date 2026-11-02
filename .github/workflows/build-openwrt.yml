@@ -134,15 +134,21 @@ jobs:
         env:
           USE_CCACHE: "${{ steps.config.outputs.use_ccache }}"
           CCACHE_MAXSIZE: "8G"
-          CCACHE_COMPILERCHECK: "content"
+          # 用「目标架构 + 完整版本号」当编译器指纹，而不是对编译器二进制取内容哈希（content）。
+          # 交叉工具链是每台编译机现编的，content 会把「换镜像 / 换宿主 gcc 小版本」变成整份缓存失效；
+          # 版本串只跟 gcc 版本和 target 走，同版本跨机也能命中。
+          # 代价：同版本但配置不同的工具链会被视为同一个编译器 —— ccache 本身把命令行参数算进 key，风险可控。
+          # 改这一项会让已有缓存全部失效一次，第一轮命中率会掉，属预期。
+          CCACHE_COMPILERCHECK: '%compiler% -dumpmachine -dumpfullversion'
         run: |
           cd openwrt
           set -o pipefail
           # 启用 ccache（放在 menuconfig 之后，不会被 menuconfig 推送进保存的配置版本）。
           # CONFIG_CCACHE 需要同时打开 CONFIG_DEVEL 才不会被 defconfig 丢弃，详见 enable-ccache.sh
           if [ "$USE_CCACHE" = "true" ]; then bash "$SCRIPTS_DIR/enable-ccache.sh"; fi
-          env -u REPORT_TOKEN -u WORKER_URL make download -j8 2>&1 | tee /tmp/make.log
-          (env -u REPORT_TOKEN -u WORKER_URL make -j"$(nproc)" || env -u REPORT_TOKEN -u WORKER_URL make -j1 V=s) 2>&1 | tee -a /tmp/make.log
+          # 每行加时间戳，编译结束后由 timing.sh 汇总「时间花在哪个包上」
+          env -u REPORT_TOKEN -u WORKER_URL make download -j8 2>&1 | bash "$SCRIPTS_DIR/stamp.sh" | tee /tmp/make.log
+          (env -u REPORT_TOKEN -u WORKER_URL make -j"$(nproc)" || env -u REPORT_TOKEN -u WORKER_URL make -j1 V=s) 2>&1 | bash "$SCRIPTS_DIR/stamp.sh" | tee -a /tmp/make.log
 
       - name: ccache 统计
         if: ${{ !cancelled() && steps.make.outcome != 'skipped' && steps.config.outputs.use_ccache == 'true' }}
@@ -150,8 +156,13 @@ jobs:
         env:
           # 统计是单独的 step，不会继承「编译」步骤的 env；不带上这两个值，-s 里显示的上限会是 ccache 默认的 5G
           CCACHE_MAXSIZE: "8G"
-          CCACHE_COMPILERCHECK: "content"
+          CCACHE_COMPILERCHECK: '%compiler% -dumpmachine -dumpfullversion'
         run: bash "$SCRIPTS_DIR/cache.sh" stats
+
+      - name: 汇总编译耗时
+        if: ${{ !cancelled() && steps.make.outcome != 'skipped' }}
+        continue-on-error: true
+        run: bash "$SCRIPTS_DIR/timing.sh" /tmp/make.log
 
       - name: 打包产物
         run: bash "$SCRIPTS_DIR/package-artifacts.sh"
