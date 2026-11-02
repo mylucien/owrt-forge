@@ -50,8 +50,15 @@ if [ -n "$T" ]; then
 fi
 [ -f configs/release.config ] && SEEDS+=("configs/release.config") || true
 
-# 合并前摘掉"整包全设备"类选项：defconfig 会照单全收，把整个 subtarget 的设备都编一遍，
-# 单机型构建既浪费空间也容易踩到别人的板子。
+# 合并前摘掉多设备模式的两个开关，以及其他机型的 DEVICE_=y。别以为"开着只是编得慢"，
+# 实测（ponwrt an7581，OpenWrt 24.10 同款 kconfig）：
+#   TARGET_MULTI_PROFILE  开=切到"勾多个设备"的菜单，defconfig 会把 choice 里选中的机型清成
+#                         is not set；构建时 _PROFILE_SET 为空 → 该机型 install-disabled，
+#                         编译"成功"却不出镜像，比编多了更糟。
+#   TARGET_PER_DEVICE_ROOTFS  Kconfig 里 depends on TARGET_MULTI_PROFILE，单选机型下想开也开不了；
+#                         它只为多设备构建给每台机器单独一份 rootfs，这里不需要。
+# 单选机型的 choice 本身会无条件 select target 的 DEFAULT_PACKAGES 和机型的 DEVICE_PACKAGES，
+# 所以不开 per-device rootfs 也不缺包（空 seed 实测：17 个机型包 + 基础包全 =y）。
 seed_strip() {
   grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_(MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)([= ]|$)' \
   | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_([A-Za-z0-9_]+_)?DEVICE_' \

@@ -16,7 +16,10 @@ if [ -n "$T" ] && [ "$T" != "/" ]; then
   done
 fi
 
-# 摘掉"整包全设备"类选项：底稿是单机型的，不能让 seed 把整个 subtarget 的设备都打开
+# 摘掉多设备模式的开关和其他机型的 DEVICE_=y。MULTI_PROFILE 开着会把 choice 里选的机型
+# 清掉（构建时该机型 install-disabled，不出镜像）；PER_DEVICE_ROOTFS 在 Kconfig 里
+# depends on MULTI_PROFILE，单选模式本来就开不了。单选 choice 已无条件 select target 默认包
+# 和机型 DEVICE_PACKAGES，不靠这两个开关。详见 gen-config.sh 同名函数上方。
 seed_strip() {
   grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_(MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)([= ]|$)' \
   | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_([A-Za-z0-9_]+_)?DEVICE_' \

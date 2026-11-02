@@ -27,7 +27,7 @@
 ### 源码自带的默认配置（configs/）
 有些分支（ponwrt、immortalwrt 衍生版等）会把「本发行版默认启用」的包放在源码的 `configs/` 里，官方构建是 `kconfig.pl + configs/<subtarget>.config configs/release.config`。这些包通常**不在** `target.mk` 的 `DEFAULT_PACKAGES` 里，只写机型再 defconfig 是拿不到的——ponwrt 的整条 PON 栈（`kmod-airoha-xpon`、`kmod-airoha-pon-frontend`、`kmod-airoha-en7572`、`airoha-pond`）就是这种情况，少了它固件能刷能开机，但光口永远起不来。
 
-现在按 `configs/<subtarget>.config` → `configs/<board>_<subtarget>.config` → `configs/release.config` 的顺序合并（后写覆盖先写），并剔除其中 `MULTI_PROFILE`、`PER_DEVICE_ROOTFS` 和其他机型的 `DEVICE_=` 行，避免单机型构建把整个 subtarget 的设备都编一遍。源码没有 `configs/` 时行为不变。
+现在按 `configs/<subtarget>.config` → `configs/<board>_<subtarget>.config` → `configs/release.config` 的顺序合并（后写覆盖先写），并剔除其中 `MULTI_PROFILE`、`PER_DEVICE_ROOTFS` 和其他机型的 `DEVICE_=` 行。这两个开关不是「开着只是变慢」：`MULTI_PROFILE=y` 会把 choice 里选中的机型清成 `is not set`，构建时该机型被判为 `install-disabled`，编译通过但不出镜像；`PER_DEVICE_ROOTFS` 在 Kconfig 里 `depends on TARGET_MULTI_PROFILE`，单选机型下本来也开不了。单选 choice 自身会 `select` target 的 `DEFAULT_PACKAGES` 与机型的 `DEVICE_PACKAGES`，不依赖它们。源码没有 `configs/` 时行为不变。
 
 `=m` 不算「已启用」。OpenWrt 里 `CONFIG_PACKAGE_x=m` 只表示把它编成 ipk 放进软件源、**不进固件**；而 `configs/` 里的快照常常留着上一次构建的 `=m`，它会把 kconfig 的默认值压掉（每个包是 `default y if DEFAULT_<pkg>`，机型的 `DEVICE_PACKAGES` 正是通过 `select DEFAULT_<pkg>` 生效的）。所以合并了 `configs/` 也只是第一步。
 
