@@ -5,6 +5,7 @@
 ## 部署（比原版少两步）
 1. 把 `worker/index.js` 粘贴到 Cloudflare Worker，绑定 D1（变量名 `DB`）并设置 Secret `MASTER_KEY`。
    **不用再手动建表**：首次请求会自动建表并迁移新增列。
+   **注意**：`worker/index.js` 是单文件 Worker，只推到 GitHub 不会自动上线——改过它（页面文案、缓存保留规则、接口）都要重新粘贴部署一次。本地改前端后先用 `python3 tools/build_worker.py` 生成 `dist/worker-index.js`，推到仓库的 `worker/index.js`，再部署。
 2. 把 `.github/workflows/build-openwrt.yml` 和 `scripts/` 放进你的 public 编译仓库。
 3. 仓库 Secrets：`REPORT_TOKEN`（部署向导生成）；仅在需要 menuconfig 时才需要 `TTYD_USER`、`TTYD_PASS`；私有插件仓库用 `SSH_PRIVATE_KEY` 或 `PLUGIN_GIT_TOKEN`（二选一，见下）。
 
@@ -66,7 +67,10 @@
 - 明确指定了一份**没有 meta 的老缓存**时按指定使用（日志里会说明无法核对机型），不会再被悄悄换成别的。
 - 发布时会多写一个 `ccache.meta.json`（目标 / 机型 / 源码 commit / `.config` 摘要 / ccache 版本 / 截至本轮结束的累计命中）。恢复时先拉它比对：目标或机型不同就直接跳过，省下几百 MB 白下载；源码版本变了会在日志里提示「只有没改到的部分能命中」；累计命中用来算**本轮**命中率。
 - 每个分卷带 sha256 校验清单；恢复时发现缺卷、截断、损坏会在构建说明里写明原因并不使用缓存，不影响编译。构建说明里会显示「本轮命中 / 可缓存调用」的命中率和「耗时最长的包/目录 / 最长无输出间隔」，可据此判断值不值得继续用。
-- 耗时埋点：编译输出每行加 `epoch HH:MM:SS ` 前缀再进日志（`scripts/stamp.sh`）。带 epoch 是为了跨 UTC 零点时不回绕，也能和文件 mtime 对齐。`scripts/timing.sh` 按「`time.pl` 的 real → `make Entering/Leaving` 成对 → 子 make 启动到 `build_dir/*/.built` 的修改时间」依次取有数据的那种，日志里会写明用的哪种；三种都没有时明确写「没有可用的计时行」，不会给出看着像结论的空表。
+- 耗时埋点：编译输出每行加 `epoch HH:MM:SS ` 前缀再进日志（`scripts/stamp.sh`）。带 epoch 是为了跨 UTC 零点时不回绕，也能和文件 mtime 对齐。`scripts/timing.sh` 按「`time.pl` 的 real → `make Entering/Leaving` 成对 → 子 make 启动到包目录里最后一个 `.` 标记」依次取有数据的那种，日志里会写明用的哪种；三种都没有时明确写「没有可用的计时行」，不会给出看着像结论的空表。
+  - 第三种来源按「host / target 层 + 相对路径」认包目录：`tools/`、`toolchain/` 下的启动行优先对 host 层，同一份源码给两边各编一次也不会互相覆盖。
+  - 结束时刻取 `.built`（编译完）、`.pkgdir` / `.installed`（装完）里最晚的那个，所以包含安装；**不含**打成 ipk 和 `package/index`，这部分只体现在「最长无输出间隔」里。
+  - 同一个目录一轮里被调起多次只算第一次启动；对不上的目录会单独报「另有 N 个……未计入」。
 - 编译器指纹用 `%compiler% -dumpfullversion`（版本串），不再对编译器二进制取内容哈希（`content`）。自建交叉工具链是每台编译机现编的，用 `content` 会让「换镜像 / 宿主 gcc 小版本变化」直接导致整份缓存失效；版本串只跟 gcc 版本走。
   - 只给**一个** `-dump` 选项：gcc 只处理第一个，写成 `-dumpmachine -dumpfullversion` 只会输出三元组、版本号被吞掉，等于指纹里没有版本。
   - 代价：同版本但配置不同的工具链会被当成同一个编译器——ccache 本身把命令行参数算进 key，风险可控。

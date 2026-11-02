@@ -300,7 +300,7 @@ function json(data, status = 200, extraHeaders = {}) {
   // 模板 API：CRUD
   // ============================================================
   // ---------- ccache 缓存：发布到编译仓库的 Release（cache-<build_id>），下次编译可恢复 ----------
-  const CACHE_KEEP = 2;                          // 只保留最新 2 份；scripts/cache.sh 里的 KEEP 要和这里一致
+  const CACHE_KEEP = 6;                          // 资料库里保留几条「有缓存」的记录（页面下拉用）；Release 的实际保留由 scripts/cache.sh 按机型分组决定（每个机型 2 份），所以这里要留够多机型的位置
   const CACHE_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
   const CACHE_TAG_RE = /^cache-[A-Za-z0-9_-]{8,64}$/;
 
@@ -1069,8 +1069,18 @@ function json(data, status = 200, extraHeaders = {}) {
     const row = await env.DB.prepare('SELECT id FROM builds WHERE id = ?').bind(body.build_id).first();
     if (!row) return err('build 不存在', 404);
     await env.DB.prepare('UPDATE builds SET cache_tag=?, cache_size=?, cache_at=? WHERE id=?').bind(tag, size, now(), body.build_id).run();
-    // 只保留最新 CACHE_KEEP 份记录（编译仓库里对应的 Release 由 scripts/cache.sh 同步清理）
-    await env.DB.prepare('UPDATE builds SET cache_tag=NULL, cache_size=NULL WHERE cache_tag IS NOT NULL AND id NOT IN (SELECT id FROM builds WHERE cache_tag IS NOT NULL ORDER BY cache_at DESC LIMIT ?)').bind(CACHE_KEEP).run();
+    // 按机型（builds.target）分组，每组只保留最近 CACHE_KEEP 条记录 —— 和 scripts/cache.sh 的 prune 一致。
+    // 以前是全库只留最新 CACHE_KEEP 条：编完机型 B，机型 A 的 cache_tag 就被清空，
+    // 而 resolveCacheFrom('latest') 是按 target 查这张表的，于是 A 选「最新缓存」时会找不到，
+    // 明明 Release 里还留着那份缓存却不去恢复。
+    await env.DB.prepare(
+      'UPDATE builds SET cache_tag=NULL, cache_size=NULL WHERE cache_tag IS NOT NULL AND id NOT IN (' +
+      '  SELECT id FROM (' +
+      '    SELECT id, ROW_NUMBER() OVER (PARTITION BY target ORDER BY cache_at DESC) AS rn' +
+      '    FROM builds WHERE cache_tag IS NOT NULL' +
+      '  ) WHERE rn <= ?' +
+      ')'
+    ).bind(CACHE_KEEP).run();
     return json({ ok: true });
   }
 
@@ -3552,7 +3562,7 @@ function drawOptions(tpl, history, caches) {
       (tpl.cache_use && tpl.cache_use !== 'latest' && !(caches || []).some(function (c) { return c.id === tpl.cache_use; }) ?
         '<option value="' + esc(tpl.cache_use) + '" selected>指定的缓存已被清理（不使用）</option>' : '') +
       '</select>') +
-    optRow('编译完成后发布缓存', '把这次的 ccache 打包发到编译仓库的 Release，下次编同机型可直接复用。最多保留 2 份。',
+    optRow('编译完成后发布缓存', '把这次的 ccache 打包发到编译仓库的 Release，下次编同机型可直接复用。每个机型最多保留 2 份，不同机型互不挤占。',
       '<label class="switch"><input type="checkbox" id="optPub"' + (tpl.cache_publish ? ' checked' : '') + '><span class="track"></span></label>');
 
   $('#optMenu').addEventListener('change', async function (e) {

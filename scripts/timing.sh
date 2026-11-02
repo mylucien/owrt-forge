@@ -11,7 +11,9 @@
 #   2) `make[N]: Entering/Leaving directory` 成对配平——按 (层级, 路径) 配对，并行时不会串味；
 #      但 OpenWrt 的子 make 带了 --no-print-directory，实测一轮只有 6 对，同样只能当补充。
 #   3) 兜底：日志里 `make[3] -C <目录> compile` 是子 make 的启动时刻，结束时刻用
-#      build_dir/<包>-<版本>/.built 的 mtime——这两个是真有数据的，能给出每个包的墙钟时间。
+#      build_dir/<包>-<版本>/ 里最后一个 `.` 开头标记的 mtime（.built 是编译完，
+#      .pkgdir/.installed 是装完，取最晚的那个，比只看 .built 更接近真正结束）；
+#      这两个是真有数据的，能给出每个包的墙钟时间。仍不含打进 ipk 和 package/index。
 set -uo pipefail
 
 LOG="${1:-/tmp/make.log}"
@@ -98,42 +100,76 @@ for abs_s, hms, msg in rows:
                 pairs.append((lvl, p, s, abs_s))
                 break
 
-# --- 来源 3：子 make 启动行 + build_dir/.built 的 mtime ---
+# --- 来源 3：子 make 启动行 + build_dir 里的结束标记 ---
 for abs_s, hms, msg in rows:
     m = start_re.match(msg)
     if m:
-        starts.append((int(abs_s), m.group(2)))
+        starts.append((int(abs_s), m.group(2).rstrip('/')))
 
-def built_mtimes():
-    """build_dir 下所有 .built 的 mtime，返回 {目录名: mtime}"""
-    res = {}
+# 同一个目录一轮里可能被调起多次（先 compile 再 host-compile），只认最早那次，
+# 否则同一个包的耗时会重复累加。
+first_start = {}
+for abs_s, d in starts:
+    if d not in first_start or abs_s < first_start[d]:
+        first_start[d] = abs_s
+
+def pkg_dirs():
+    """build_dir 下每个包目录的「最后一次动作」时间。
+
+    返回 [(kind, 目录名, 相对路径, end)]，kind 是 host / target。
+    end 取目录里所有 `.` 开头条目的最晚 mtime：.built 是编译完，.pkgdir/.installed
+    是装完，比只看 .built 更接近这个包真正结束的时刻（打进 ipk、package/index 仍不计入）。
+    一定要用「相对路径」把 host 和 target 分开——同一份源码给两边各编一次时目录名完全一样
+    （都叫 foo-1.2.3），只按 basename 建索引会互相覆盖，被盖掉的那份会因为
+    「结束时间早于启动」被整条丢掉，那个包就整个消失在 Top 里。
+    """
+    res = []
     bd = os.path.join(base, 'build_dir')
     if not os.path.isdir(bd):
         return res
     for root, dirs, files in os.walk(bd):
-        if '.built' in files:
-            try:
-                res[os.path.basename(root)] = os.stat(os.path.join(root, '.built')).st_mtime
-            except OSError:
-                pass
+        rel = os.path.relpath(root, bd)
+        ends = []
+        for n in list(files) + list(dirs):
+            if n.startswith('.'):
+                try:
+                    ends.append(os.stat(os.path.join(root, n)).st_mtime)
+                except OSError:
+                    pass
+        dirs[:] = [d for d in dirs if not d.startswith('.')]   # 收完 .pkgdir 的 mtime 就不再往里钻
+        if rel == '.':
+            continue
+        if ends:
+            kind = 'host' if rel.split(os.sep)[0].startswith('host') else 'target'
+            res.append((kind, os.path.basename(root), rel, max(ends)))
     return res
 
-pkgs = []
-if starts:
-    mt = built_mtimes()
+def resolve(d, entries):
+    """把子 make 的 -C 目录对到 build_dir 里的包目录（tools/、toolchain/ 下是 host 包）。"""
+    name = os.path.basename(d)
+    kinds = ('host', 'target') if d.split('/')[0] in ('tools', 'toolchain') else ('target', 'host')
+    for kind in kinds:
+        same = [e for e in entries if e[0] == kind]
+        exact = [e for e in same if e[1] == name]
+        if not exact:                                   # 目录名是 <包名>-<版本>
+            pref = [e for e in same if e[1].startswith(name + '-')]
+            exact = [min(pref, key=lambda e: len(e[1]))] if pref else []   # 免得 libfoo 抢到 libfoo-bar
+        if exact:
+            return max(exact, key=lambda e: e[3])       # 万一还有同名的，取结束最晚的
+    return None
+
+pkgs, dropped = [], 0
+if first_start:
+    entries = pkg_dirs()
     last = rows[-1][0]
-    for abs_s, d in starts:
-        name = os.path.basename(d.rstrip('/'))
-        # 目录名是 <包名>-<版本>；优先精确同名，其次取最短的同前缀目录名，免得 libfoo 抢到 libfoo-bar
-        cand = name if name in mt else None
-        if cand is None:
-            pref = [k for k in mt if k.startswith(name + '-')]
-            if pref:
-                cand = min(pref, key=len)
-        if cand is None:
+    for d, abs_s in first_start.items():
+        e = resolve(d, entries)
+        if e is None:
+            dropped += 1
             continue
-        end = mt[cand]
-        if end < abs_s - 2:      # .built 比这次启动还早 → 上一轮的残留
+        end = e[3]
+        if end < abs_s - 2:      # 结束标记比这次启动还早 → 上一轮的残留，或这轮还没编完
+            dropped += 1
             continue
         if end > last + 3600:
             continue
@@ -163,13 +199,15 @@ elif len(pairs) >= 1:
     src = "make 目录停留时间（层级 %d）" % keep
     line = top_block(items)
 elif len(pkgs) >= 1:
-    src = "包编译墙钟（启动→.built）"
+    src = "包墙钟（启动→.built/装完）"
     line = top_block(pkgs)
+    if dropped:
+        print("SKIP %d" % dropped)      # 只有走这一种来源时才需要交代没对上的目录
 
 if line:
     print("TOPLINE %s|%s" % (src, line))
 else:
-    print("COUNTS time=%d enter=%d pkg=%d" % (len(time_lines), len(pairs), len(pkgs)))
+    print("COUNTS time=%d enter=%d pkg=%d skip=%d" % (len(time_lines), len(pairs), len(pkgs), dropped))
 
 # 长时间没有任何输出的段：并行槽被个别长任务占满时，日志会整段空白
 blanks = []
@@ -194,10 +232,12 @@ SPAN=$(sed -n 's/^SPAN //p' /tmp/timing-report)
 TOPS=$(sed -n 's/^TOPLINE //p' /tmp/timing-report)
 COUNTS=$(sed -n 's/^COUNTS //p' /tmp/timing-report)
 GAPS=$(sed -n 's/^GAPLINE //p' /tmp/timing-report)
+SKIP=$(sed -n 's/^SKIP //p' /tmp/timing-report)
 
 [ -n "$SPAN" ] && note "编译耗时：$SPAN"
 if [ -n "$TOPS" ]; then
   note "耗时最长的包/目录（Top 8，来源：${TOPS%%|*}）：${TOPS#*|}"
+  [ -n "$SKIP" ] && note "另有 $SKIP 个子 make 目录没能对上 build_dir 里的包目录（这轮没编完，或目录名和包名不一致），未计入上面的 Top"
 elif [ -n "$COUNTS" ]; then
   note "耗时统计：日志里没有可用的计时行（$COUNTS），本次跳过"
 fi
