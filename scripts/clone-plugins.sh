@@ -28,6 +28,15 @@ trap cleanup_auth EXIT
 
 FAILED=()
 
+# 日志里不打印 https://user:token@host 的 userinfo 部分
+redact() {
+  if [ "$#" -gt 0 ]; then
+    printf '%s' "$1" | sed -E 's#(https://)[^/@[:space:]]+@#\1***@#g'
+  else
+    sed -E 's#(https://)[^/@[:space:]]+@#\1***@#g'
+  fi
+}
+
 https_to_ssh() {
   case "$1" in
     https://github.com/*)
@@ -65,8 +74,8 @@ clone_repo() { # $1=name $2=url $3=dest $4=branch(可空) $5=full|sparse
     fi
   fi
 
-  echo "::error::插件仓库克隆失败：${name} <- ${url}"
-  echo "  git: $(printf '%s' "$err" | tail -n 3 | tr '\n' ' ' | cut -c1-300)" >&2
+  echo "::error::插件仓库克隆失败：${name} <- $(redact "$url")"
+  echo "  git: $(printf '%s' "$err" | redact | tail -n 3 | tr '\n' ' ' | cut -c1-300)" >&2
   echo "  检查：地址是否拼错、仓库是否公开可读${branch:+、分支 ${branch} 是否存在}；" >&2
   echo "        私有仓库请用 git@github.com:owner/repo.git + SSH_PRIVATE_KEY，或配置 PLUGIN_GIT_TOKEN" >&2
   return 1
@@ -100,9 +109,9 @@ while IFS= read -r p; do
   fi
 
   url=$(jq -r .git_url <<<"$p"); branch=$(jq -r '.branch // ""' <<<"$p")
-  [[ "$url" =~ $URL_RE ]] || { echo "::error::插件仓库地址非法: $url"; exit 1; }
+  [[ "$url" =~ $URL_RE ]] || { echo "::error::插件仓库地址非法: $(redact "$url")（不要把 token 写进地址，改用 PLUGIN_GIT_TOKEN）"; exit 1; }
   # 分支可为空（使用仓库默认分支）；整仓克隆和稀疏克隆都会用到
-  echo "[插件] $name <- $url${branch:+ (分支 $branch)}"
+  echo "[插件] $name <- $(redact "$url")${branch:+ (分支 $branch)}"
   if [ "$(jq -r '.sparse // false' <<<"$p")" = "true" ]; then
     # url 以 .git 结尾时 basename 与 git clone 生成的目录名不一致，所以统一克隆到固定的 $tmp/r
     tmp=$(mktemp -d); mapfile -t dirs < <(jq -r '.dirs[]' <<<"$p")
