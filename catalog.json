@@ -1,10 +1,10 @@
 {
  "schema": 1,
- "updated": "2026-10-26",
+ "updated": "2026-11-02",
  "upstream": {
   "repo": "https://github.com/immortalwrt/luci",
   "branch": "openwrt-24.10",
-  "commit": "7f9ad99d611a7548125e73b7e375b6d1793ca1ef"
+  "commit": "d72e293e6fd698af75510b9018fb7e154ae219cc"
  },
  "categories": [
   {
