@@ -2,6 +2,8 @@
 set -euo pipefail
 : "${HAS_DOTCONFIG:?}"
 touch /tmp/build-notes
+# 写进构建说明（页面上展示），同时打到日志 —— 否则日志里看不到自动补了什么
+note() { printf '%s\n' "$*" >> /tmp/build-notes; printf '%s\n' "$*"; }
 NPKG=$(jq '(.packages // []) | length' config.json)
 T=$(jq -r '.target // ""' config.json)
 
@@ -35,11 +37,11 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     # 否则上传一份不完整的底稿，源码新增的包会被静默丢掉（例：ponwrt 的 PON 前端驱动）。
     cat "${SEEDS[@]}" | seed_strip > openwrt/.config || true
     jq -r .dotconfig_snapshot config.json >> openwrt/.config
-    echo "配置来源：源码默认配置（${SEEDS[*]}）+ 固定底稿（${SNAP_N} 项），底稿优先" >> /tmp/build-notes
+    note "配置来源：源码默认配置（${SEEDS[*]}）+ 固定底稿（${SNAP_N} 项），底稿优先"
   else
     # 固定了配置底稿且源码没有 configs/：原样使用该版本
     jq -r .dotconfig_snapshot config.json > openwrt/.config
-    echo "配置来源：固定底稿（${SNAP_N} 项），源码仓库没有 configs/*.config，未做兜底" >> /tmp/build-notes
+    note "配置来源：固定底稿（${SNAP_N} 项），源码仓库没有 configs/*.config，未做兜底"
   fi
 
   (cd openwrt && make defconfig)
@@ -102,6 +104,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     declared_pkgs
     [ ${#DECL[@]} -gt 0 ] || exit 0
     enabled_provides_map > /tmp/enabled-provides
+  skip_all=""; off_all=""
     for round in 1 2; do
       add=""; skip=""; off=""
       for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
@@ -115,17 +118,23 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
         add="$add $p"
       done
       if [ -n "${skip// /}" ]; then
-        echo "机型声明的包已有同类替代，按底稿的选择保留：${skip# }" >> /tmp/build-notes
+        skip_all="$skip_all $skip"
       fi
       if [ -n "${off// /}" ]; then
-        echo "机型声明的应用在底稿里被显式关掉，按底稿保持关闭：${off# }" >> /tmp/build-notes
+        off_all="$off_all $off"
       fi
       [ -n "${add// /}" ] || break
       for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
-      echo "机型 $P 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig" >> /tmp/build-notes
+      note "机型 $P 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig"
       make defconfig || true
       enabled_provides_map > /tmp/enabled-provides
     done
+    if [ -n "${skip_all// /}" ]; then
+      note "机型声明的包已有同类替代，按底稿的选择保留：$(printf '%s\n' $skip_all | sort -u | paste -sd' ')"
+    fi
+    if [ -n "${off_all// /}" ]; then
+      note "机型声明的应用在底稿里被显式关掉，按底稿保持关闭：$(printf '%s\n' $off_all | sort -u | paste -sd' ')"
+    fi
     drv=""; other=""
     for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
       grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
@@ -143,7 +152,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       exit 1
     fi
     if [ -n "${other// /}" ]; then
-      echo "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）" >> /tmp/build-notes
+      note "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）"
     fi
   ) || exit 1
 
@@ -169,6 +178,6 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     fi
   fi
 elif [ "$(jq '(.packages // []) | length' config.json)" -gt 0 ] || [ -n "$(jq -r '.profile // ""' config.json)" ]; then
-  echo "配置来源：按模板的机型和 ${NPKG} 个插件清单生成" >> /tmp/build-notes
+  note "配置来源：按模板的机型和 ${NPKG} 个插件清单生成"
   bash "$SCRIPTS_DIR/gen-config.sh"
 fi

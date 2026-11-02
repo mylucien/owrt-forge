@@ -18,6 +18,8 @@ P=$(jq -r '.profile // ""' ../config.json)   # 例 cmcc_rax3000m、generic
 : > /tmp/config-error
 : > /tmp/defconfig.log
 : > /tmp/gate-hints
+# 写进构建说明（页面上展示），同时打到日志 —— 否则日志里看不到自动补了什么
+note() { printf '%s\n' "$*" >> /tmp/build-notes; printf '%s\n' "$*"; }
 
 # target/profile 会被写进 .config，必须严格校验，防止注入额外的配置行
 if [ -n "$P" ]; then
@@ -70,8 +72,7 @@ rm -f .config
 
 if [ ${#SEEDS[@]} -gt 0 ]; then
   cat "${SEEDS[@]}" | seed_strip >> .config || true
-  echo "已合并源码默认配置：${SEEDS[*]}"
-  echo "已合并源码默认配置：${SEEDS[*]}" >> /tmp/build-notes
+  note "已合并源码默认配置：${SEEDS[*]}"
 else
   echo "源码仓库没有匹配的 configs/*.config，只用机型默认配置"
 fi
@@ -152,6 +153,8 @@ enforce_device_packages() {
   [ ${#DECL[@]} -gt 0 ] || return 0
   enabled_provides_map > /tmp/enabled-provides
 
+  skip_all=""; off_all=""
+
   for round in 1 2; do
     add=""; skip=""; off=""
     for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
@@ -165,20 +168,23 @@ enforce_device_packages() {
       add="$add $p"
     done
     if [ -n "${skip// /}" ]; then
-      echo "机型声明的包已有同类替代，按模板的选择保留：${skip# }" >> /tmp/build-notes
-      echo "机型声明的包已有同类替代，不重复装：${skip# }"
+      skip_all="$skip_all $skip"
     fi
     if [ -n "${off// /}" ]; then
-      echo "机型声明的应用在配置里被显式关掉，保持关闭：${off# }" >> /tmp/build-notes
-      echo "机型声明的应用在配置里被显式关掉，按配置保持关闭：${off# }"
+      off_all="$off_all $off"
     fi
     [ -n "${add// /}" ] || break
     for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
-    echo "机型 $P 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
-    echo "机型 $P 声明需要的包补成 =y：${add# }" >> /tmp/build-notes
+    note "机型 $P 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
     make defconfig 2>&1 | tee -a /tmp/defconfig.log
     enabled_provides_map > /tmp/enabled-provides
   done
+  if [ -n "${skip_all// /}" ]; then
+    note "机型声明的包已有同类替代，按配置里的选择保留：$(printf '%s\n' $skip_all | sort -u | paste -sd' ')"
+  fi
+  if [ -n "${off_all// /}" ]; then
+    note "机型声明的应用在配置里被显式关掉，保持关闭：$(printf '%s\n' $off_all | sort -u | paste -sd' ')"
+  fi
 
   drv=""; other=""
   for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
@@ -197,8 +203,7 @@ enforce_device_packages() {
     exit 1
   fi
   if [ -n "${other// /}" ]; then
-    echo "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）" >> /tmp/build-notes
-    echo "提示：机型声明的应用有 $(echo $other | wc -w) 个没进配置（${other# }），驱动都在，不影响开机"
+    note "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足；驱动都在，不影响开机）"
   fi
 }
 
