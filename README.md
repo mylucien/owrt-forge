@@ -6,7 +6,7 @@
 1. 把 `worker/index.js` 粘贴到 Cloudflare Worker，绑定 D1（变量名 `DB`）并设置 Secret `MASTER_KEY`。
    **不用再手动建表**：首次请求会自动建表并迁移新增列。
 2. 把 `.github/workflows/build-openwrt.yml` 和 `scripts/` 放进你的 public 编译仓库。
-3. 仓库 Secrets：`REPORT_TOKEN`（部署向导生成）；仅在需要 menuconfig 时才需要 `TTYD_USER`、`TTYD_PASS`；`SSH_PRIVATE_KEY` 仅私有插件仓库需要。
+3. 仓库 Secrets：`REPORT_TOKEN`（部署向导生成）；仅在需要 menuconfig 时才需要 `TTYD_USER`、`TTYD_PASS`；私有插件仓库用 `SSH_PRIVATE_KEY` 或 `PLUGIN_GIT_TOKEN`（二选一，见下）。
 
 ## 使用
 流程分两页：
@@ -20,6 +20,16 @@
 
 ### 自定义插件的包名
 `.config` 里启用的是**包名**（Makefile 里的 `PKG_NAME` / `BuildPackage`），不是目录名。「识别」会读取 Makefile 得到真实包名；一个目录里定义了多个包时，其余的会作为自动依赖一起启用。克隆后还会自动把 `include ../../luci.mk` 这类相对路径改成 `$(TOPDIR)/feeds/luci/luci.mk`，否则 luci 应用会被 OpenWrt 扫描时悄悄丢掉。编译前校验失败时，构建记录会逐个写明：源码里有没有这个包、自定义仓库里实际定义了哪些包名。
+
+### 插件仓库拉不下来时
+克隆前会打印 `[插件] 名字 <- 地址 (分支)`；失败时 `::error::` 直接写明是哪个插件、哪个地址，并带上 git 的原始错误——不再只有一句 `could not read Username for 'https://github.com'`。
+
+- 地址写错、仓库改名或删除、仓库转私有，在 git 眼里都是「要凭据」（GitHub 对私有仓库返回 404，git 于是去问用户名）。Actions 没有终端，所以直接 128。
+- 私有仓库二选一：
+  - Secret `SSH_PRIVATE_KEY`（部署密钥），地址填 `git@github.com:owner/repo.git`；
+  - Secret `PLUGIN_GIT_TOKEN`（有 repo 读权限的 PAT），地址继续用 `https://…`。脚本把它写进 `~/.gitconfig` 的 `http.https://github.com/.extraheader`，不放进 URL，退出时清掉。
+- 地址写成 `https://…` 但只配了 SSH key：脚本会自动换成 `git@github.com:…` 重试一次，成功则继续。
+- 任一插件拉取失败都会**中止并列出全部失败项**，不静默跳过——少个插件编出来的固件更难查。
 
 ### 配置是怎么生成的
 编译时先合并**源码仓库自带的发行版默认配置**，再让源码生成该机型的**默认配置**，然后把所选插件合并进去，最后逐项校验：机型不存在、或有插件没生效（依赖缺失 / 源码里没有这个包），任务会在**编译前**直接失败，并在构建记录里写明是哪几个，不会等几小时后才发现。
