@@ -10,6 +10,12 @@
 
 级别与各自治的优先级（同级别内后者不覆盖前者，跨级别互不影响）：
 
+  T0 明确关闭      `# CONFIG_X is not set` / `=n`
+                   合并结果里显式关掉的符号是最高一级：后面的补包（机型声明的
+                   DEVICE_PACKAGES）不会再把它们打开，驱动也不例外。合并阶段仍按
+                   来源优先级取值 —— 底稿写了 =y、源码补充写了 is not set，是底稿赢；
+                   赢下来的那个值如果是「关闭」，它就是 T0，谁也不能再翻。
+
   L1 平台/子目标   CONFIG_TARGET_<m>=y、CONFIG_TARGET_<m>_<s>=y
                    只认本次任务的 target；其它平台的行一律丢弃。
   L2 机型          CONFIG_TARGET_<m>_<s>_DEVICE_<p>=y（单选）
@@ -209,6 +215,11 @@ def main():
               '不按 %s 校验/补包' % (a.profile, ', '.join(dev_ids), dev_ids[0], a.profile))
     print('NOTE 分级写入：%s' % '、'.join(
         '%s %d' % (LEVEL_NAME[lv], counts[lv]) for lv in (1, 2, 3, 4, 5)))
+    off_pkgs = [k for k in best
+                if best[k][1] == UNSET and level_of(k, plat, subm) == L4_PACKAGE]
+    if off_pkgs:
+        print('NOTE T0 明确关闭：%d 个包在合并结果里是 is not set，后面的补包不会打开它们' %
+              len(off_pkgs))
     for n in notes:
         print('NOTE %s' % n)
 

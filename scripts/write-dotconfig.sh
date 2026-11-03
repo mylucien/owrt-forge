@@ -178,9 +178,10 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
         grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
         if o=$(substituted_by "$p"); then skip="$skip $p→$o"; continue; fi
-        # 底稿明确写了 "# ... is not set"：应用类尊重它，驱动类照补（驱动缺了设备不工作，
-        # 而且编译照样成功，属于看不见的缺）
-        if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
+        # T0：合并结果里明确写了 "# ... is not set" 的，是最高一级 —— 后面的补包不再把它
+        # 打开，驱动也不例外。这是配置里最硬的意图（底稿或源码补充明确不要这个包），
+        # 硬补成 =y 等于把别人的决定又改回去。仍然只影响「补」，不影响合并时的来源优先级。
+        if grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
           off="$off $p"; continue
         fi
         add="$add $p"
@@ -193,7 +194,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       fi
       [ -n "${add// /}" ] || break
       for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
-      note "机型 $EP 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig"
+      note "机型 $EP 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
       make defconfig || true
       enabled_provides_map > /tmp/enabled-provides
     done
@@ -201,13 +202,24 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       note "机型声明的包已有同类替代，按底稿的选择保留：$(printf '%s\n' $skip_all | sort -u | paste -sd' ')"
     fi
     if [ -n "${off_all// /}" ]; then
-      note "机型声明的应用在底稿里被显式关掉，按底稿保持关闭：$(printf '%s\n' $off_all | sort -u | paste -sd' ')"
+      off_app=""; off_drv=""
+      for p in $(printf '%s\n' $off_all | sort -u); do
+        if is_driver "$p"; then off_drv="$off_drv $p"; else off_app="$off_app $p"; fi
+      done
+      if [ -n "${off_app// /}" ]; then
+        note "机型声明的应用在配置里被明确关闭（T0），保持关闭：${off_app# }"
+      fi
+      if [ -n "${off_drv// /}" ]; then
+        # 驱动被明确关掉是有代价的（设备可能起不来），但 T0 就是 T0：只提示，不擅自打开
+        note "机型声明的驱动在配置里被明确关闭（T0），按你的选择保持关闭：${off_drv# } —— 固件里不会有这些驱动"
+        echo "::warning::T0 明确关闭的驱动：${off_drv# }（机型声明里有，但配置写死了 is not set）"
+      fi
     fi
     drv=""; other=""
     for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
       grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
       substituted_by "$p" > /dev/null && continue
-      if ! is_driver "$p" && grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then continue; fi
+      if grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then continue; fi
       if is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
     done
     if [ -n "${drv// /}" ]; then
@@ -225,15 +237,24 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
   ) || exit 1
 
   # 审计：源码默认启用、但最终 .config 里没有的包。底稿不完整时这里会列出来。
-  # 同符号在合并里只保留一份，以合并结果为准。
+  # 明确写成 is not set 的属于 T0（故意不要），不算「缺」。
   if [ -s "$SEED" ]; then
-    pkg_on() {
-      grep -qx "CONFIG_PACKAGE_${1}=y" openwrt/.config
+    pkg_state() {
+      if grep -qx "CONFIG_PACKAGE_${1}=y" openwrt/.config; then echo y
+      elif grep -qx "# CONFIG_PACKAGE_${1} is not set" openwrt/.config; then echo off
+      else echo missing; fi
     }
-    LOST=""
+    LOST=""; OFFC=0
     for p in $(sed -n 's/^CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SEED" | sort -u); do
-      pkg_on "$p" || LOST="$LOST $p"
+      case "$(pkg_state "$p")" in
+        y) ;;
+        off) OFFC=$((OFFC + 1)) ;;
+        *) LOST="$LOST $p" ;;
+      esac
     done
+    if [ "$OFFC" -gt 0 ]; then
+      note "其中 $OFFC 个包在配置里被明确关闭（T0），按配置保留关闭，不算缺失"
+    fi
     if [ -n "${LOST// /}" ]; then
       {
         echo "注意：底稿没有带上源码默认启用的这些包，固件里不会有它们："

@@ -42,7 +42,7 @@
 
 `=m` 不算「已启用」。OpenWrt 里 `CONFIG_PACKAGE_x=m` 只表示把它编成 ipk 放进软件源、**不进固件**；而 `configs/` 里的快照常常留着上一次构建的 `=m`，它会把 kconfig 的默认值压掉（每个包是 `default y if DEFAULT_<pkg>`，机型的 `DEVICE_PACKAGES` 正是通过 `select DEFAULT_<pkg>` 生效的）。所以合并了 `configs/` 也只是第一步。
 
-选中机型之后还会按 `tmp/.targetinfo` 里这台机器声明的 `DEVICE_PACKAGES`（make 展开后的最终列表，已经算过 `+=` 与 `-包名`）逐个核对，没到 `=y` 的补上再 defconfig；补不上的驱动（`kmod-*`、`*-firmware`）**直接失败**并指出是配置里哪一行把它写成了 `=m`。两个例外，避免顶掉你的选择：机型要的包已换成同类（`wpad-openssl` → `wpad-basic-mbedtls`，按 `Provides` 判断）不重复装；底稿里显式 `is not set` 的应用保持关闭。
+选中机型之后还会按 `tmp/.targetinfo` 里这台机器声明的 `DEVICE_PACKAGES`（make 展开后的最终列表，已经算过 `+=` 与 `-包名`）逐个核对，没到 `=y` 的补上再 defconfig；补不上的驱动（`kmod-*`、`*-firmware`）**直接失败**并指出是配置里哪一行把它写成了 `=m`。三个例外，避免顶掉你的选择：机型要的包已换成同类（`wpad-openssl` → `wpad-basic-mbedtls`，按 `Provides` 判断）不重复装；配置里显式 `is not set` 的包保持关闭（T0，驱动也一样，只给告警不中止）；`=m` 的驱动仍按 `=y` 补上（`=m` 不进固件）。
 
 这些自动动作会在**构建日志里直接打印**（同时写进构建说明），例如：
 
@@ -59,15 +59,18 @@
 
   | 级别 | 符号 | 取谁 |
   |---|---|---|
+  | **T0 明确关闭** | 合并结果里是 `# CONFIG_x is not set`（或 `=n`）的符号 | **最高一级**：后面的补包不再打开它，驱动也不例外。只在合并完成之后生效，不参与来源比大小 |
   | 平台/子目标 | `CONFIG_TARGET_<m>=y`、`CONFIG_TARGET_<m>_<s>=y` | 只认这次任务的 target，别的平台/子目标一律丢弃 |
   | 机型（型号） | `CONFIG_TARGET_<m>_<s>_DEVICE_<p>=y`、`CONFIG_TARGET_DEVICE_<...>`、`MULTI_PROFILE`、`ALL_PROFILES`、`PER_DEVICE_ROOTFS` | **底稿 > 模板** |
   | 目标选项 | `CONFIG_TARGET_DEVICE_PACKAGES_<...>`、`CONFIG_TARGET_ROOTFS_*`、`TARGET_IMAGES_*` | 底稿 > 源码补充 > 模板 |
   | 包 | `CONFIG_PACKAGE_*=y/m/n`、`# CONFIG_PACKAGE_x is not set` | 底稿 > 源码补充 > 模板插件清单 |
   | 内核/其它 | `CONFIG_KERNEL_*` 及其它 | 底稿 > 源码补充 > 模板 |
 
+- **T0（明确关闭）是最硬的一级**：合并之后，配置里写成 `is not set` 的包，后续「机型声明的包补成 `=y`」不会碰它 —— 包括驱动。以前驱动被明确关掉也会被硬补回来，等于把写配置的人的决定又改回去。驱动被 T0 关掉时构建说明会给出告警（「固件里不会有这些驱动」），但**不中止编译**：这是你写死的选择。写成 `=m` 不在此列 —— `=m` 只编 ipk、不进固件，仍会被补成 `=y`。
+
 - 所以**底稿里的型号优先**：模板写着 `fiberhome_hg5382a`、底稿里是 `nokia_xg-040g-md-ubi`，就按 nokia 编，并在构建说明里写明「模板机型 X 与底稿机型 Y 不一致」；之后的机型校验和驱动补包也按 nokia 的 `DEVICE_PACKAGES`，不会把模板机型的驱动塞进别人的固件。机型三行只在底稿没指定型号时才由模板写。
 - 源码补充（`configs/*.config`）按**最终生效的型号**找文件（`configs/<s>.config`、`configs/<m>_<s>.config`、`configs/<s>_<型号>.config`、`configs/<型号>.config`、`configs/release.config`），不是按模板型号找 —— 不同型号由源码补的包本来就不一样。这些文件里的 `MULTI_PROFILE` / `DEVICE_*` 行按级别丢弃：那是「这份发行版默认编哪些设备」，留着会把选中的机型清掉。
-- 合并后仍会审计一遍：底稿没有带上「源码默认启用」的包会写进构建说明并给告警，避免底稿不完整导致固件静默少驱动。机型声明的驱动也不允许缺：底稿里写成 `=m` 的会被补成 `=y`，补不上直接失败（`=m` 只编 ipk，固件里没有）。
+- 合并后仍会审计一遍：底稿没有带上「源码默认启用」的包会写进构建说明并给告警，避免底稿不完整导致固件静默少驱动（其中被明确关闭的不算「缺」，只报个数）。机型声明的驱动也不允许缺：底稿里写成 `=m` 的会被补成 `=y`，补不上直接失败（`=m` 只编 ipk，固件里没有）；但 T0 明确关闭的驱动不补、也不失败，只给告警。
 
 ### 编译缓存（ccache，可选）
 重复编译同一类固件时，可以把某次编译的 ccache 缓存发布出来，下次编译取回来用，省掉重复的编译时间。默认不启用。
