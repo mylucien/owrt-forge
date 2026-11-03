@@ -6,58 +6,126 @@ touch /tmp/build-notes
 note() { printf '%s\n' "$*" >> /tmp/build-notes; printf '%s\n' "$*"; }
 NPKG=$(jq '(.packages // []) | length' config.json)
 T=$(jq -r '.target // ""' config.json)
+P=$(jq -r '.profile // ""' config.json)     # 模板机型
+m=""; s=""
+if [ -n "$T" ] && [ "$T" != "/" ]; then m="${T%%/*}"; s="${T##*/}"; fi
 
 # ---------------------------------------------------------------------------
-# 源码仓库自带的发行版默认配置（与 gen-config.sh 同一套查找规则）
+# 有固定底稿时怎么写 .config：按「符号级别」合并，而不是把三份文件拼起来。
+#
+#   一个 .config 里混着五种级别的符号（平台 / 机型 / 目标选项 / 包 / 内核其它）。
+#   整份拼接等于按文件覆盖：底稿一份几百行的快照会把包和内核选项一起顶掉，
+#   模板的插件清单又夹在包这一级中间，最后「谁最后写谁赢」—— 这不是分级。
+#
+#   各级的优先级（同级内高优先级的不被覆盖，跨级互不影响）：
+#     L1 平台/子目标   只认本次任务的 target
+#     L2 机型（型号）  底稿 > 模板        ← 型号这一级底稿说了算
+#     L3 目标选项      底稿 > 源码补充 > 模板
+#     L4 包            底稿 > 源码补充 > 模板插件
+#     L5 内核/其它     底稿 > 源码补充 > 模板
+#
+#   合并交给 scripts/config-merge.py（可单测），这里只负责准备三个来源。
+#   源码补充（configs/*.config）里的 MULTI_PROFILE / DEVICE_ 行在合并时按级别丢掉：
+#   那是「这份发行版默认编哪些设备」，留着会把选中的机型清掉（见 gen-config.sh）。
 # ---------------------------------------------------------------------------
-SEEDS=()
-if [ -n "$T" ] && [ "$T" != "/" ]; then
-  m="${T%%/*}"; s="${T##*/}"
-  for f in "openwrt/configs/${s}.config" "openwrt/configs/${m}_${s}.config" "openwrt/configs/release.config"; do
-    [ -f "$f" ] && SEEDS+=("$f") || true
-  done
-fi
-
-# 摘掉多设备模式的开关和其他机型的 DEVICE_=y。MULTI_PROFILE 开着会把 choice 里选的机型
-# 清掉（构建时该机型 install-disabled，不出镜像）；PER_DEVICE_ROOTFS 在 Kconfig 里
-# depends on MULTI_PROFILE，单选模式本来就开不了。单选 choice 已无条件 select target 默认包
-# 和机型 DEVICE_PACKAGES，不靠这两个开关。详见 gen-config.sh 同名函数上方。
-seed_strip() {
-  grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_(MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)([= ]|$)' \
-  | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_([A-Za-z0-9_]+_)?DEVICE_' \
-  | grep -vE '^[[:space:]]*#?[[:space:]]*CONFIG_TARGET_DEVICE_PACKAGES_'
-}
-
 if [ "$HAS_DOTCONFIG" = "true" ]; then
-  SNAP_N=$(jq -r .dotconfig_snapshot config.json | grep -c "^CONFIG_" || true)
+  SNAP=/tmp/dotconfig.snapshot
+  jq -r .dotconfig_snapshot config.json > "$SNAP"
+  SNAP_N=$(grep -c "^CONFIG_" "$SNAP" || true)
 
-  if [ ${#SEEDS[@]} -gt 0 ]; then
-    # 底稿优先，但先铺源码默认配置兜底：底稿里没提到的符号由源码默认值补上，
-    # 底稿里明确写了的（含 "# ... is not set"）后写覆盖先写，仍然是底稿说了算。
-    # 否则上传一份不完整的底稿，源码新增的包会被静默丢掉（例：ponwrt 的 PON 前端驱动）。
-    cat "${SEEDS[@]}" | seed_strip > openwrt/.config || true
-    jq -r .dotconfig_snapshot config.json >> openwrt/.config
-    note "配置来源：源码默认配置（${SEEDS[*]}）+ 固定底稿（${SNAP_N} 项），底稿优先"
+  # 底稿自己指定的机型（单选与多选两种写法都认，多个时取第一个）。
+  # 这里先粗算一次，只为了按机型挑源码补充文件；最终以合并器的结果为准。
+  SNAP_P=$(sed -n 's/^CONFIG_TARGET_[^=]*_DEVICE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SNAP" | head -n1)
+  SEL="${SNAP_P:-$P}"
+
+  # ---- 来源二：源码仓库自带的发行版默认配置（查找规则与 gen-config.sh 对齐）----
+  SEED=/tmp/cfg-seed
+  : > "$SEED"
+  if [ -n "$T" ] && [ "$T" != "/" ]; then
+    if [ -n "$SEL" ]; then
+      for f in "openwrt/configs/${s}.config" "openwrt/configs/${m}_${s}.config" \
+               "openwrt/configs/${s}_${SEL}.config" "openwrt/configs/${SEL}.config"; do
+        if [ -f "$f" ]; then cat "$f" >> "$SEED"; fi
+      done
+    elif [ -f "openwrt/configs/${s}.config" ]; then
+      cat "openwrt/configs/${s}.config" >> "$SEED"
+    fi
+    if [ -f "openwrt/configs/release.config" ]; then cat "openwrt/configs/release.config" >> "$SEED"; fi
+  fi
+
+  # ---- 来源三：模板（机型行 + 插件清单），优先级最低 ----
+  TPL=/tmp/cfg-template
+  : > "$TPL"
+  if [ -n "$m" ]; then
+    printf 'CONFIG_TARGET_%s=y\n' "$m" >> "$TPL"
+    printf 'CONFIG_TARGET_%s_%s=y\n' "$m" "$s" >> "$TPL"
+  fi
+  if [ -n "$P" ] && [ -n "$m" ]; then
+    printf 'CONFIG_TARGET_%s_%s_DEVICE_%s=y\n' "$m" "$s" "$P" >> "$TPL"
+  fi
+  if [ "$NPKG" -gt 0 ]; then
+    jq -r '.packages[]? | select(test("^[A-Za-z0-9_.+-]+$")) | "CONFIG_PACKAGE_\(.)=y"' config.json >> "$TPL"
+  fi
+
+  # ---- 来源一：底稿，最高优先级 ----
+  report=/tmp/cfg-merge.log
+  if command -v python3 >/dev/null 2>&1; then
+    if ! python3 "$SCRIPTS_DIR/config-merge.py" --target "$T" --profile "$P" \
+         --snapshot "$SNAP" --seed "$SEED" --template "$TPL" --out openwrt/.config > "$report"; then
+      echo "::error::分级合并配置失败"
+      cat "$report"
+      exit 1
+    fi
+    while IFS= read -r line; do
+      case "$line" in
+        "NOTE "*) note "${line#NOTE }" ;;
+      esac
+    done < "$report"
+    EP=$(sed -n 's/^EP=//p' "$report" | head -n1)
+    note "配置来源：底稿 $SNAP_N 项（最高）→ 源码补充 → 模板插件 $NPKG 个（最低），按级别取值"
   else
-    # 固定了配置底稿且源码没有 configs/：原样使用该版本
-    jq -r .dotconfig_snapshot config.json > openwrt/.config
-    note "配置来源：固定底稿（${SNAP_N} 项），源码仓库没有 configs/*.config，未做兜底"
+    # runner 正常都有 python3；万一没有，退回「低优先级先写」的拼接，不中断编译
+    note "没有 python3，退回按文件顺序拼接：模板 → 源码补充 → 底稿"
+    cat "$TPL" "$SEED" "$SNAP" > openwrt/.config
+    EP="$SEL"
   fi
 
   (cd openwrt && make defconfig)
+
+  # 机型这一类要单独校验：defconfig 之后必须真的生效，否则编出来的可能就是别的机型。
+  # 单选与多设备两种写法分开校验（多设备模式下单选那行会被 kconfig 清掉）。
+  if [ -n "$EP" ] && [ -n "$m" ]; then
+    if grep -qx 'CONFIG_TARGET_MULTI_PROFILE=y' openwrt/.config; then
+      VLINE="CONFIG_TARGET_DEVICE_${m}_${s}_DEVICE_${EP}=y"
+    else
+      VLINE="CONFIG_TARGET_${m}_${s}_DEVICE_${EP}=y"
+    fi
+    if ! grep -qxF "$VLINE" openwrt/.config; then
+      {
+        echo "机型 $EP 没有在 ${T} 的配置里生效（期望 $VLINE）。"
+        echo "底稿机型：${SNAP_P:-无}；模板机型：${P:-无}；目标：${T:-无}。"
+        echo "常见原因：底稿是从别的平台/机型存下来的，或者该机型名在这个源码版本里已经改了。"
+        echo "改法：在模板页重新保存一次底稿，或去掉模板上固定的底稿。"
+      } > /tmp/config-error
+      echo "::error::$(head -n1 /tmp/config-error)"
+      cat /tmp/config-error
+      exit 1
+    fi
+  fi
 
   # 机型自己声明的包必须都在配置里。原理见 gen-config.sh 里同名函数上方的注释：
   # 底稿里一行 PACKAGE_x=m 会压掉 kconfig 的 "default y if DEFAULT_x"，而 =m 只编
   # ipk、不进固件 —— ponwrt 的 kmod-airoha-en7572 就是这样丢的，编译不报错、PON
   # 永远起不来。这里在 openwrt/ 里跑，逻辑与 gen-config.sh 完全一致（含同类替代检查）。
-  P=$(jq -r '.profile // ""' config.json)
+  # 注意用的是 EP（最终生效机型），不是模板机型：底稿指定了别的机型时，按底稿的包清单校验，
+  # 否则会把模板机型的驱动硬塞进别人的固件里。
   (
     cd openwrt
     declare -A DECL=()
     profile_pkgs() {
-      [ -n "$P" ] || return 0
+      [ -n "$EP" ] || return 0
       [ -f tmp/.targetinfo ] || return 0
-      awk -v id="DEVICE_$P" '
+      awk -v id="DEVICE_$EP" '
         /^Target-Profile:/ { cur = $2; next }
         cur == id && /^Target-Profile-Packages:/ {
           sub(/^[^:]*:[ \t]*/, ""); print; exit
@@ -100,7 +168,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       done
       return 1
     }
-    [ -n "$P" ] && [ -f tmp/.targetinfo ] || exit 0
+    [ -n "$EP" ] && [ -f tmp/.targetinfo ] || exit 0
     declared_pkgs
     [ ${#DECL[@]} -gt 0 ] || exit 0
     enabled_provides_map > /tmp/enabled-provides
@@ -125,7 +193,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       fi
       [ -n "${add// /}" ] || break
       for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
-      note "机型 $P 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig"
+      note "机型 $EP 声明、底稿里却没有的包：${add# } → 补成 =y 后重新 defconfig"
       make defconfig || true
       enabled_provides_map > /tmp/enabled-provides
     done
@@ -143,7 +211,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       if is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
     done
     if [ -n "${drv// /}" ]; then
-      { echo "机型 $P 声明的驱动没能生效：${drv# }"
+      { echo "机型 $EP 声明的驱动没能生效：${drv# }"
         echo "底稿里这些包是 =m 或 n（=m 只编 ipk，不会装进固件），或者依赖不满足。"
         echo "把底稿里对应的行删掉或改成 =y 再编译；确实不需要，就改 target/linux/.../image 里这个机型的 DEVICE_PACKAGES。"
       } > /tmp/config-error
@@ -157,15 +225,13 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
   ) || exit 1
 
   # 审计：源码默认启用、但最终 .config 里没有的包。底稿不完整时这里会列出来。
-  # 同一个符号在合并结果里可能出现多次（seed 一次、底稿一次），以最后一行为准。
-  if [ ${#SEEDS[@]} -gt 0 ]; then
+  # 同符号在合并里只保留一份，以合并结果为准。
+  if [ -s "$SEED" ]; then
     pkg_on() {
-      local l
-      l=$(grep -E "^# CONFIG_PACKAGE_${1} is not set$|^CONFIG_PACKAGE_${1}=[ym]$" openwrt/.config | tail -n1)
-      case "$l" in *"=y") return 0 ;; *) return 1 ;; esac
+      grep -qx "CONFIG_PACKAGE_${1}=y" openwrt/.config
     }
     LOST=""
-    for p in $(cat "${SEEDS[@]}" | sed -n 's/^CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' | sort -u); do
+    for p in $(sed -n 's/^CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SEED" | sort -u); do
       pkg_on "$p" || LOST="$LOST $p"
     done
     if [ -n "${LOST// /}" ]; then
@@ -177,7 +243,7 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       echo "::warning::底稿缺少源码默认启用的包：${LOST# }"
     fi
   fi
-elif [ "$(jq '(.packages // []) | length' config.json)" -gt 0 ] || [ -n "$(jq -r '.profile // ""' config.json)" ]; then
+elif [ "$NPKG" -gt 0 ] || [ -n "$P" ]; then
   note "配置来源：按模板的机型和 ${NPKG} 个插件清单生成"
   bash "$SCRIPTS_DIR/gen-config.sh"
 fi
