@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# 假 gh：只实现 cache.sh 用到的 release view/list/download/delete。
+# 状态目录由 CCSTUB_STATE 指定：rel/<tag>/ 存 assets，order 存「新→旧」的 tag 列表。
+set -uo pipefail
+S=${CCSTUB_STATE:?CCSTUB_STATE 未设置}
+cmd=${1:-}; shift || true
+case "$cmd" in
+  release)
+    sub=${1:-}; shift || true
+    case "$sub" in
+      view)
+        tag=${1:-}
+        [ -n "$tag" ] && [ -d "$S/rel/$tag" ] && exit 0 || exit 1 ;;
+      list)
+        cat "$S/order" 2>/dev/null || true
+        exit 0 ;;
+      download)
+        tag=${1:-}; shift || true
+        dir=""; pats=()
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --dir) dir=$2; shift 2 ;;
+            --pattern) pats+=("$2"); shift 2 ;;
+            *) shift ;;
+          esac
+        done
+        [ -d "$S/rel/$tag" ] || exit 1
+        got=0
+        for p in "${pats[@]+"${pats[@]}"}"; do
+          for f in "$S/rel/$tag"/$p; do
+            [ -f "$f" ] || continue
+            cp "$f" "$dir/" && got=1
+          done
+        done
+        [ "$got" = 1 ] || exit 1
+        exit 0 ;;
+      delete)
+        tag=${1:-}
+        rm -rf "$S/rel/$tag"
+        grep -vx "$tag" "$S/order" > "$S/order.tmp" 2>/dev/null || true
+        mv "$S/order.tmp" "$S/order" 2>/dev/null || true
+        exit 0 ;;
+      *) exit 1 ;;
+    esac ;;
+  *) exit 1 ;;
+esac

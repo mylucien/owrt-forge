@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${HAS_DOTCONFIG:?}"
+SCRIPTS_DIR="${SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 touch /tmp/build-notes
 # 写进构建说明（页面上展示），同时打到日志 —— 否则日志里看不到自动补了什么
 note() { printf '%s\n' "$*" >> /tmp/build-notes; printf '%s\n' "$*"; }
@@ -35,7 +36,17 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
 
   # 底稿自己指定的机型（单选与多选两种写法都认，多个时取第一个）。
   # 这里先粗算一次，只为了按机型挑源码补充文件；最终以合并器的结果为准。
-  SNAP_P=$(sed -n 's/^CONFIG_TARGET_[^=]*_DEVICE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SNAP" | head -n1)
+  #
+  # 不能用 `CONFIG_TARGET_[^=]*_DEVICE_` 这种带通配的写法：CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+  # 也长得像，机型会被取成 ROOTFS（后面还会误报「模板机型与底稿机型不一致」）。
+  # 只认本 target 的两种前缀，和 config-merge.py 的 device_id() 一致。
+  SNAP_P=""
+  if [ -n "$m" ]; then
+    SNAP_P=$(sed -n \
+      -e "s/^CONFIG_TARGET_DEVICE_${m}_${s}_DEVICE_\([A-Za-z0-9_.+-]*\)=y$/\1/p" \
+      -e "s/^CONFIG_TARGET_${m}_${s}_DEVICE_\([A-Za-z0-9_.+-]*\)=y$/\1/p" \
+      "$SNAP" | head -n1 || true)
+  fi
   SEL="${SNAP_P:-$P}"
 
   # ---- 来源二：源码仓库自带的发行版默认配置（查找规则与 gen-config.sh 对齐）----
@@ -83,6 +94,18 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     done < "$report"
     EP=$(sed -n 's/^EP=//p' "$report" | head -n1)
     note "配置来源：底稿 $SNAP_N 项（最高）→ 源码补充 → 模板插件 $NPKG 个（最低），按级别取值"
+
+    # 模板里勾了、最终却没进固件（被底稿/源码补充压成关闭或 =m）的插件，单独告警。
+    # 「覆盖明细」只列前几个符号，插件商店用户最容易在这里踩空：页面勾着的应用没了。
+    TPL_DOWN=$(sed -n 's/^TPL_DOWN=//p' "$report" | head -n1)
+    TPL_SHOWN=$(sed -n 's/^TPL_ITEM //p' "$report" | wc -l | tr -d ' ')
+    if [ -n "$TPL_DOWN" ] && [ "$TPL_DOWN" -gt 0 ] 2>/dev/null; then
+      TPL_LIST=$(sed -n 's/^TPL_ITEM //p' "$report" | paste -sd'、' -)
+      if [ -n "$TPL_LIST" ]; then
+        note "模板选中但没进固件（$TPL_DOWN 个）：$TPL_LIST$([ "$TPL_DOWN" -gt "$TPL_SHOWN" ] && echo ' …')"
+        echo "::warning::模板里勾选的插件被配置压成关闭或 =m，固件里不会有：$TPL_LIST"
+      fi
+    fi
   else
     # runner 正常都有 python3；万一没有，退回「低优先级先写」的拼接，不中断编译
     note "没有 python3，退回按文件顺序拼接：模板 → 源码补充 → 底稿"
@@ -113,142 +136,30 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     fi
   fi
 
-  # 机型自己声明的包必须都在配置里。原理见 gen-config.sh 里同名函数上方的注释：
-  # 底稿里一行 PACKAGE_x=m 会压掉 kconfig 的 "default y if DEFAULT_x"，而 =m 只编
-  # ipk、不进固件 —— ponwrt 的 kmod-airoha-en7572 就是这样丢的，编译不报错、PON
-  # 永远起不来。这里在 openwrt/ 里跑，逻辑与 gen-config.sh 完全一致（含同类替代检查）。
-  # 注意用的是 EP（最终生效机型），不是模板机型：底稿指定了别的机型时，按底稿的包清单校验，
+  # 机型自己声明的包必须都在配置里；实现与 gen-config.sh 共用 scripts/device-packages.sh
+  # （以前这里和那边各一份，T0 语义只在一边生效）。原理见那个文件的头注释。
+  # 用 EP（最终生效机型）而不是模板机型：底稿指定了别的机型时，按底稿的包清单校验，
   # 否则会把模板机型的驱动硬塞进别人的固件里。
-  (
-    cd openwrt
-    declare -A DECL=()
-    profile_pkgs() {
-      [ -n "$EP" ] || return 0
-      [ -f tmp/.targetinfo ] || return 0
-      awk -v id="DEVICE_$EP" '
-        /^Target-Profile:/ { cur = $2; next }
-        cur == id && /^Target-Profile-Packages:/ {
-          sub(/^[^:]*:[ \t]*/, ""); print; exit
-        }' tmp/.targetinfo 2>/dev/null
-    }
-    declared_pkgs() {
-      local t
-      DECL=()
-      for t in $(profile_pkgs); do
-        case "$t" in
-          -*) unset "DECL[${t#-}]" ;;
-          +*) DECL["${t#+}"]=1 ;;
-          *@*|*:*|*'$'*) continue ;;
-          *) [ -n "$t" ] && DECL["$t"]=1 ;;
-        esac
-      done
-    }
-    is_driver() { case "$1" in kmod-*|*-firmware) return 0 ;; *) return 1 ;; esac; }
-    provides_of() {
-      awk -v p="$1" '$0=="Package: "p{f=1; next}
-        f && /^Provides:/ { sub(/^Provides:[ \t]*/, ""); print; exit }
-        f && /^@@/ { exit }' tmp/.packageinfo 2>/dev/null
-    }
-    enabled_provides_map() {
-      awk 'FNR==NR {
-             if ($0 ~ /^CONFIG_PACKAGE_[A-Za-z0-9_.+-]+=y$/) {
-               n=$0; sub(/^CONFIG_PACKAGE_/, "", n); sub(/=y$/, "", n); EN[n]=1
-             }
-             next
-           }
-           /^Package: / { pkg=$2; next }
-           /^Provides:/ { for (i=2; i<=NF; i++) if (pkg in EN) print $i, pkg }
-          ' .config tmp/.packageinfo 2>/dev/null
-    }
-    substituted_by() {
-      local v other
-      for v in $(provides_of "$1"); do
-        other=$(awk -v v="$v" -v q="$1" '$1==v && $2!=q { print $2; exit }' /tmp/enabled-provides 2>/dev/null)
-        [ -n "$other" ] && { echo "$other"; return 0; }
-      done
-      return 1
-    }
-    [ -n "$EP" ] && [ -f tmp/.targetinfo ] || exit 0
-    declared_pkgs
-    [ ${#DECL[@]} -gt 0 ] || exit 0
-    enabled_provides_map > /tmp/enabled-provides
-  skip_all=""; off_all=""
-    for round in 1 2; do
-      add=""; skip=""; off=""
-      for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
-        grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
-        if o=$(substituted_by "$p"); then skip="$skip $p→$o"; continue; fi
-        # T0：合并结果里明确写了 "# ... is not set" 的，是最高一级 —— 后面的补包不再把它
-        # 打开，驱动也不例外。这是配置里最硬的意图（底稿或源码补充明确不要这个包），
-        # 硬补成 =y 等于把别人的决定又改回去。仍然只影响「补」，不影响合并时的来源优先级。
-        if grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
-          off="$off $p"; continue
-        fi
-        add="$add $p"
-      done
-      if [ -n "${skip// /}" ]; then
-        skip_all="$skip_all $skip"
-      fi
-      if [ -n "${off// /}" ]; then
-        off_all="$off_all $off"
-      fi
-      [ -n "${add// /}" ] || break
-      for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
-      note "机型 $EP 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
-      make defconfig || true
-      enabled_provides_map > /tmp/enabled-provides
-    done
-    if [ -n "${skip_all// /}" ]; then
-      note "机型声明的包已有同类替代，按底稿的选择保留：$(printf '%s\n' $skip_all | sort -u | paste -sd' ')"
-    fi
-    if [ -n "${off_all// /}" ]; then
-      off_app=""; off_drv=""
-      for p in $(printf '%s\n' $off_all | sort -u); do
-        if is_driver "$p"; then off_drv="$off_drv $p"; else off_app="$off_app $p"; fi
-      done
-      if [ -n "${off_app// /}" ]; then
-        note "机型声明的应用在配置里被明确关闭（T0），保持关闭：${off_app# }"
-      fi
-      if [ -n "${off_drv// /}" ]; then
-        # 驱动被明确关掉是有代价的（设备可能起不来），但 T0 就是 T0：只提示，不擅自打开
-        note "机型声明的驱动在配置里被明确关闭（T0），按你的选择保持关闭：${off_drv# } —— 固件里不会有这些驱动"
-        echo "::warning::T0 明确关闭的驱动：${off_drv# }（机型声明里有，但配置写死了 is not set）"
-      fi
-    fi
-    drv=""; other=""
-    for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
-      grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
-      substituted_by "$p" > /dev/null && continue
-      if grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then continue; fi
-      if is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
-    done
-    if [ -n "${drv// /}" ]; then
-      { echo "机型 $EP 声明的驱动没能生效：${drv# }"
-        echo "底稿里这些包是 =m 或 n（=m 只编 ipk，不会装进固件），或者依赖不满足。"
-        echo "把底稿里对应的行删掉或改成 =y 再编译；确实不需要，就改 target/linux/.../image 里这个机型的 DEVICE_PACKAGES。"
-      } > /tmp/config-error
-      echo "::error::$(head -n1 /tmp/config-error)"
-      cat /tmp/config-error
-      exit 1
-    fi
-    if [ -n "${other// /}" ]; then
-      note "机型声明的应用没进配置：${other# }（有同类包顶替的已跳过，其余多为源码里条件不满足）"
-    fi
-  ) || exit 1
+  source "$SCRIPTS_DIR/device-packages.sh"
+  ( cd openwrt && enforce_device_packages "$EP" ) || exit 1
 
-  # 审计：源码默认启用、但最终 .config 里没有的包。底稿不完整时这里会列出来。
-  # 明确写成 is not set 的属于 T0（故意不要），不算「缺」。
+  # 审计：源码默认启用的包，最终有没有进固件。
+  # 注意口径 —— 源码补充是参与合并的（不是"底稿没带上就丢"），所以这里列出来的
+  # 基本都是「按级别该是 =y，但 defconfig 没让它是 =y」：依赖不满足、平台条件不成立，
+  # 或者被人为写成 =m（只编 ipk）。不要再写成"底稿不完整"。
   if [ -s "$SEED" ]; then
     pkg_state() {
       if grep -qx "CONFIG_PACKAGE_${1}=y" openwrt/.config; then echo y
+      elif grep -qx "CONFIG_PACKAGE_${1}=m" openwrt/.config; then echo m
       elif grep -qx "# CONFIG_PACKAGE_${1} is not set" openwrt/.config; then echo off
       else echo missing; fi
     }
-    LOST=""; OFFC=0
+    LOST=""; OFFC=0; MODC=0
     for p in $(sed -n 's/^CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SEED" | sort -u); do
       case "$(pkg_state "$p")" in
         y) ;;
         off) OFFC=$((OFFC + 1)) ;;
+        m) MODC=$((MODC + 1)); LOST="$LOST $p" ;;
         *) LOST="$LOST $p" ;;
       esac
     done
@@ -257,11 +168,12 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
     fi
     if [ -n "${LOST// /}" ]; then
       {
-        echo "注意：底稿没有带上源码默认启用的这些包，固件里不会有它们："
+        echo "注意：源码默认启用、但最终没进固件的包（$MODC 个是 =m，只编 ipk 不装进固件）："
         echo " ${LOST# }"
-        echo "如果确实不需要可以忽略；如果是底稿不完整，把它们补进底稿再编译。"
+        echo "源码补充是参与合并的，所以到这里还没有，原因通常是依赖不满足、被 defconfig 关掉，或该平台不支持；"
+        echo "确认办法：看编译日志里 make defconfig 的 unmet dependencies 提示，或下面「插件没生效」那段诊断。"
       } >> /tmp/build-notes
-      echo "::warning::底稿缺少源码默认启用的包：${LOST# }"
+      echo "::warning::源码默认启用但没进固件的包：${LOST# }"
     fi
   fi
 elif [ "$NPKG" -gt 0 ] || [ -n "$P" ]; then

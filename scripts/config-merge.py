@@ -102,15 +102,47 @@ def level_of(key, plat, subm):
     return L5_OTHER
 
 
+def device_prefixes(plat, subm):
+    """两种机型写法的前缀。多选的那条更长，先试它。
+
+        单选  CONFIG_TARGET_<m>_<s>_DEVICE_<id>
+        多选  CONFIG_TARGET_DEVICE_<m>_<s>_DEVICE_<id>      （TARGET_MULTI_PROFILE=y 时才有）
+    """
+    if subm:
+        return ('CONFIG_TARGET_DEVICE_%s_%s_DEVICE_' % (plat, subm),
+                'CONFIG_TARGET_%s_%s_DEVICE_' % (plat, subm))
+    return ('CONFIG_TARGET_DEVICE_%s_DEVICE_' % plat,
+            'CONFIG_TARGET_%s_DEVICE_' % plat)
+
+
+def device_id(key, plat, subm):
+    """从机型行里取出机型 id；不是本 target 的机型行返回 ''。
+
+    必须按前缀剥，不能用 split('_DEVICE_', 1)：多选写法里第一个 `_DEVICE_` 出现在
+    `TARGET_DEVICE_` 处，split 会取出 `airoha_an7581_DEVICE_nokia_xg-040g-md-ubi`
+    这种垃圾，后面校验机型行、匹配 DEVICE_PACKAGES 全部对不上。
+    按前缀剥还顺带把别的平台的机型行和 MULTI_PROFILE/PER_DEVICE_ROOTFS 这类
+    名字里带 `_DEVICE_` 的开关排除掉了（前缀对不上）。
+    """
+    if key in MULTI_SWITCHES:
+        return ''
+    for pref in device_prefixes(plat, subm):
+        if key.startswith(pref) and len(key) > len(pref):
+            return key[len(pref):]
+    return ''
+
+
 def device_keys(syms, plat, subm):
-    """取这个来源里 `=y` 的机型行（单选与多选两种写法都算）。"""
+    """取这个来源里 `=y` 的机型行（单选与多选两种写法都算，只认本 target）。"""
     out = []
     for key, val in syms:
         if val != 'y':
             continue
         if key.startswith('CONFIG_TARGET_DEVICE_PACKAGES_'):
             continue
-        if level_of(key, plat, subm) == L2_DEVICE and '_DEVICE_' in key:
+        if key in MULTI_SWITCHES:      # PER_DEVICE_ROOTFS 的名字里也有 _DEVICE_
+            continue
+        if device_id(key, plat, subm):
             out.append(key)
     return out
 
@@ -152,7 +184,7 @@ def main():
         # 模板文件里没写机型行（非预期），仍按模板机型兜一下
         chosen = ['CONFIG_TARGET_%s_%s_DEVICE_%s' % (plat, subm, a.profile)]
         dev_src = '模板'
-    dev_ids = [k.split('_DEVICE_', 1)[1] for k in chosen]
+    dev_ids = [d for d in (device_id(k, plat, subm) for k in chosen) if d]
     ep = dev_ids[0] if dev_ids else ''
 
     multi_on = False
@@ -165,7 +197,8 @@ def main():
         if multi_on:
             break
     # 单选写法底下 MULTI_PROFILE 必须是关的，否则 choice 会被清掉、不出镜像
-    if multi_on and not any(k.startswith('CONFIG_TARGET_DEVICE_') for k in chosen):
+    multi_fmt = device_prefixes(plat, subm)[0]
+    if multi_on and not any(k.startswith(multi_fmt) for k in chosen):
         multi_on = False
 
     # ---------------- L3/L4/L5：三来源按级别取最高优先 ----------------
@@ -192,6 +225,11 @@ def main():
         out.append('CONFIG_TARGET_%s_%s=y' % (plat, subm))
     if multi_on:
         out.append('CONFIG_TARGET_MULTI_PROFILE=y')
+        # 多设备模式下底稿/模板若开着 per-device rootfs（每台机各一份 rootfs），一并带上。
+        # 单选时它也不能留：Kconfig 里 depends on TARGET_MULTI_PROFILE，留着反而是脏配置。
+        src_syms = snap if multi_src == '底稿' else tpl
+        if any(k == 'CONFIG_TARGET_PER_DEVICE_ROOTFS' and v == 'y' for k, v in src_syms):
+            out.append('CONFIG_TARGET_PER_DEVICE_ROOTFS=y')
         notes.append('机型走多设备模式（来自%s）' % multi_src)
     for key in chosen:
         out.append('%s=y' % key)
@@ -240,6 +278,25 @@ def main():
                    'n' if val == UNSET else val, lsrc, 'n' if lval == UNSET else lval))
         if len(over) > MAX_EXAMPLES:
             print('NOTE · ……另有 %d 个符号按同一规则取值' % (len(over) - MAX_EXAMPLES))
+
+    # 模板里勾选的插件，最终被别的来源压成关闭或 =m。
+    # 拿整份 .config 当底稿时最容易踩：页面上勾着的插件静默失效，固件里没有它，
+    # 而上面那段「覆盖明细」只列前几个符号，插件商店用户根本看不到自己那条。
+    # 这里按包名点名，调用方（write-dotconfig.sh）据此发 ::warning::。
+    tpl_pkgs = {k for k, v in tpl if v == 'y' and level_of(k, plat, subm) == L4_PACKAGE}
+    down = []
+    for key in sorted(tpl_pkgs):
+        if key not in best:
+            continue
+        prio, val, src, _ = best[key]
+        if src == '模板':
+            continue
+        if val in (UNSET, 'n', 'm'):
+            down.append((key[len('CONFIG_PACKAGE_'):], '关闭' if val in (UNSET, 'n') else '=m',
+                         src))
+    print('TPL_DOWN=%d' % len(down))
+    for name, how, src in down[:MAX_EXAMPLES]:
+        print('TPL_ITEM %s（模板选了，%s 改成%s）' % (name, src, how))
 
     alien = sorted({k for k, _ in snap + seed + tpl
                     if level_of(k, plat, subm) == L1_PLATFORM

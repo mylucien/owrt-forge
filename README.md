@@ -6,6 +6,7 @@
 1. 把 `worker/index.js` 粘贴到 Cloudflare Worker，绑定 D1（变量名 `DB`）并设置 Secret `MASTER_KEY`。
    **不用再手动建表**：首次请求会自动建表并迁移新增列。
    **注意**：`worker/index.js` 是单文件 Worker，只推到 GitHub 不会自动上线——改过它（页面文案、缓存保留规则、接口）都要重新粘贴部署一次。本地改前端后先用 `python3 tools/build_worker.py` 生成 `dist/worker-index.js`，推到仓库的 `worker/index.js`，再部署。
+   **怎么确认线上是哪一版**：部署完打开 `https://<你的域名>/api/health`，返回里的 `worker_version` 要和 `worker/index.js` 顶部的 `WORKER_VERSION` 一致，`features` 里能看到线上到底有没有 `cache_per_target_prune`（按机型清理缓存）、`config_merge_by_level`、`cache_keep_6` 这些行为开关。对不上就是没部署，别去别处找原因。
 2. 把 `.github/workflows/build-openwrt.yml` 和 `scripts/` 放进你的 public 编译仓库。
 3. 仓库 Secrets：`REPORT_TOKEN`（部署向导生成）；仅在需要 menuconfig 时才需要 `TTYD_USER`、`TTYD_PASS`；私有插件仓库用 `SSH_PRIVATE_KEY` 或 `PLUGIN_GIT_TOKEN`（二选一，见下）。
 
@@ -61,7 +62,7 @@
   |---|---|---|
   | **T0 明确关闭** | 合并结果里是 `# CONFIG_x is not set`（或 `=n`）的符号 | **最高一级**：后面的补包不再打开它，驱动也不例外。只在合并完成之后生效，不参与来源比大小 |
   | 平台/子目标 | `CONFIG_TARGET_<m>=y`、`CONFIG_TARGET_<m>_<s>=y` | 只认这次任务的 target，别的平台/子目标一律丢弃 |
-  | 机型（型号） | `CONFIG_TARGET_<m>_<s>_DEVICE_<p>=y`、`CONFIG_TARGET_DEVICE_<...>`、`MULTI_PROFILE`、`ALL_PROFILES`、`PER_DEVICE_ROOTFS` | **底稿 > 模板** |
+  | 机型（型号） | `CONFIG_TARGET_<m>_<s>_DEVICE_<p>=y`（单选）、`CONFIG_TARGET_DEVICE_<m>_<s>_DEVICE_<p>=y`（多选）、`MULTI_PROFILE`、`ALL_PROFILES`、`PER_DEVICE_ROOTFS` | **底稿 > 模板**。机型 id 按前缀剥取（不能用 `split('_DEVICE_')`，多选写法里第一个 `_DEVICE_` 在 `TARGET_DEVICE_` 处）；`PER_DEVICE_ROOTFS` 只在多选模式下跟着带上，单选时丢掉 |
   | 目标选项 | `CONFIG_TARGET_DEVICE_PACKAGES_<...>`、`CONFIG_TARGET_ROOTFS_*`、`TARGET_IMAGES_*` | 底稿 > 源码补充 > 模板 |
   | 包 | `CONFIG_PACKAGE_*=y/m/n`、`# CONFIG_PACKAGE_x is not set` | 底稿 > 源码补充 > 模板插件清单 |
   | 内核/其它 | `CONFIG_KERNEL_*` 及其它 | 底稿 > 源码补充 > 模板 |
@@ -70,7 +71,9 @@
 
 - 所以**底稿里的型号优先**：模板写着 `fiberhome_hg5382a`、底稿里是 `nokia_xg-040g-md-ubi`，就按 nokia 编，并在构建说明里写明「模板机型 X 与底稿机型 Y 不一致」；之后的机型校验和驱动补包也按 nokia 的 `DEVICE_PACKAGES`，不会把模板机型的驱动塞进别人的固件。机型三行只在底稿没指定型号时才由模板写。
 - 源码补充（`configs/*.config`）按**最终生效的型号**找文件（`configs/<s>.config`、`configs/<m>_<s>.config`、`configs/<s>_<型号>.config`、`configs/<型号>.config`、`configs/release.config`），不是按模板型号找 —— 不同型号由源码补的包本来就不一样。这些文件里的 `MULTI_PROFILE` / `DEVICE_*` 行按级别丢弃：那是「这份发行版默认编哪些设备」，留着会把选中的机型清掉。
-- 合并后仍会审计一遍：底稿没有带上「源码默认启用」的包会写进构建说明并给告警，避免底稿不完整导致固件静默少驱动（其中被明确关闭的不算「缺」，只报个数）。机型声明的驱动也不允许缺：底稿里写成 `=m` 的会被补成 `=y`，补不上直接失败（`=m` 只编 ipk，固件里没有）；但 T0 明确关闭的驱动不补、也不失败，只给告警。
+- 合并后仍会审计一遍：**源码默认启用、但最终没进固件**的包会写进构建说明并给告警（`=m` 单独标注，它只编 ipk）。注意口径 —— 源码补充是参与合并的，所以这里列出来的不是"底稿没带上"，而是"按级别该是 `=y` 但 `defconfig` 没让它是"：多数是依赖不满足、平台条件不成立，或被 `defconfig` 关掉；要确认原因看 `make defconfig` 的 `unmet dependencies`。其中被明确关闭的（T0）不算「缺」，只报个数。
+- **模板里勾选的插件如果被压成关闭或 `=m`，会单独告警**：`::warning::模板里勾选的插件被配置压成关闭或 =m，固件里不会有：luci-app-foo（模板选了，底稿 改成关闭）`。整份 `.config` 当底稿时最容易踩这个坑，而上面的「覆盖明细」只列前几个符号，看不到你勾的那条。
+- 机型声明的驱动也不允许缺：写成 `=m` 的会被补成 `=y`，补不上直接失败（`=m` 只编 ipk，固件里没有）；但 T0 明确关闭的驱动不补、也不失败，只给告警。补包这段是 `scripts/device-packages.sh`，固定底稿和不固定底稿两条路**共用同一份实现**（以前各抄一份，T0 语义只在一边生效）。
 
 ### 编译缓存（ccache，可选）
 重复编译同一类固件时，可以把某次编译的 ccache 缓存发布出来，下次编译取回来用，省掉重复的编译时间。默认不启用。
@@ -102,9 +105,18 @@ catalog.schema.json       目录格式的 JSON Schema
 src/                      前端源码（样式 + 三段 JS），见 src/README.md
 tools/                    目录同步、内置目录嵌入、前端注入脚本
 worker/index.js           Cloudflare Worker（含内联的 APP_CSS / APP_JS，可直接部署）
-scripts/                  编译用的脚本
+scripts/                  编译用的脚本（device-packages.sh 是 gen-config 与 write-dotconfig 共用的补包实现）
+tests/                    本地回归（不需要源码、不联网）：配置分级合并、底稿写入、缓存挑选、耗时汇总
 .github/workflows/        build-openwrt.yml（编译）、sync-catalog.yml（每周同步插件目录）
 ```
+
+改完脚本先跑一遍回归（几秒到几十秒，Windows 的 Git Bash 也能跑）：
+
+```bash
+for t in tests/*-test.sh tests/run.sh; do bash "$t" || echo "FAILED: $t"; done
+```
+
+覆盖范围：`config-merge-test.sh` 分级取值（含多设备写法、`PER_DEVICE_ROOTFS` 不被当机型）、`write-dotconfig-test.sh` 端到端（假 openwrt + 假 make + 假 jq）、`timing-test.sh` 耗时汇总的三种取源、`run.sh` 缓存挑选与按机型清理（假 gh / zstd / jq）。
 
 前端要改样式或页面，改 `src/` 后跑 `python3 tools/build_ui.py` 重新注入 `worker/index.js`（`--preview 文件` 可以另存一份静态页本地看），再部署 Worker 即可；只改插件目录时不用动前端。
 

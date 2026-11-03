@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# 假 zstd：压缩和解压都原样透传（测试里「压缩」只是 tar 数据流）
+exec cat

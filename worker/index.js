@@ -299,6 +299,13 @@ function json(data, status = 200, extraHeaders = {}) {
   // ============================================================
   // 模板 API：CRUD
   // ============================================================
+  // ---------- 部署版本：改了本文件就把版本号和日期一起改 ----------
+  // 推 GitHub 不会自动上线，Cloudflare 里那份要手动重新粘贴部署。两边不一致时行为会
+  // 悄悄不一样（上一轮就吃过亏：仓库里按机型清理数据库，线上还是全库留 2 条）。
+  // 部署完打开 /api/health，看 worker_version 与这里是否一致即可确认。
+  const WORKER_VERSION = '2026-11-03.1';
+  const WORKER_FEATURES = ['cache_per_target_prune', 'config_merge_by_level', 'cache_keep_6'];
+
   // ---------- ccache 缓存：发布到编译仓库的 Release（cache-<build_id>），下次编译可恢复 ----------
   const CACHE_KEEP = 6;                          // 资料库里保留几条「有缓存」的记录（页面下拉用）；Release 的实际保留由 scripts/cache.sh 按机型分组决定（每个机型 2 份），所以这里要留够多机型的位置
   const CACHE_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
@@ -4760,6 +4767,16 @@ async function bootData() {
     if (path === '/api/login' && method === 'POST') return handleLogin(request, env);
     if (path === '/api/setup/status' && method === 'GET') return handleSetupStatus(request, env);
     if (path === '/api/setup/init' && method === 'POST') return handleSetupInit(request, env);
+    // 线上跑的是哪一版：部署完打开这个地址，和 worker/index.js 里的 WORKER_VERSION 对一下。
+    // 顺便把几个"行为开关"报出来 —— 光看版本号对不上时，能立刻知道线上是不是旧逻辑。
+    if (path === '/api/health' && method === 'GET') {
+      return json({
+        ok: true,
+        worker_version: WORKER_VERSION,
+        features: WORKER_FEATURES,
+        cache_keep: CACHE_KEEP,
+      });
+    }
   
     // workflow 专用接口（REPORT_TOKEN 鉴权）
     if (path === '/api/report' && method === 'POST') {
