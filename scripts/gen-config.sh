@@ -11,6 +11,8 @@
 # 不会等编译几个小时后才发现固件里少了东西。
 # 固定了配置底稿的任务不会走到这里（见 write-dotconfig.sh）。
 set -euo pipefail
+# 脚本目录要在 cd 之前算：下面会 cd openwrt，之后 BASH_SOURCE 若是相对路径就解析不出来了
+SCRIPTS_DIR="${SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 cd openwrt
 T=$(jq -r '.target // ""' ../config.json)    # 例 mediatek/filogic、x86/64
 P=$(jq -r '.profile // ""' ../config.json)   # 例 cmcc_rax3000m、generic
@@ -84,10 +86,8 @@ fi
 # 同一份逻辑。以前两边各抄一份，改了一处忘了另一处 —— T0 语义就是这样先在底稿那条路上
 # 生效、这边还保留着"驱动照补"的旧行为。原理与规则见那个文件的头注释。
 # ---------------------------------------------------------------------------
-SCRIPTS_DIR="${SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 # shellcheck source=device-packages.sh
 source "$SCRIPTS_DIR/device-packages.sh"
-
 if [ -n "$P" ]; then
   # 机型行写在最后：前面的 seed 里可能有同一个符号的相反取值，后写覆盖先写
   printf 'CONFIG_TARGET_%s=y\nCONFIG_TARGET_%s_%s=y\nCONFIG_TARGET_%s_%s_DEVICE_%s=y\n' "$m" "$m" "$s" "$m" "$s" "$P" >> .config
