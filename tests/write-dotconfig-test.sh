@@ -59,6 +59,7 @@ CONFIG_TARGET_MULTI_PROFILE=y
 CONFIG_TARGET_DEVICE_airoha_an7581_DEVICE_airoha_an7581-evb=y
 CONFIG_PACKAGE_wpad-basic-mbedtls=y
 # CONFIG_PACKAGE_kmod-phy-maxlinear is not set
+# CONFIG_PACKAGE_luci-app-argon is not set
 EOF
 cat > "$W/app/openwrt/configs/release.config" <<'EOF'
 CONFIG_PACKAGE_kmod-airoha-xpon=y
@@ -129,15 +130,14 @@ has   "[A] 平台行保留"                  'CONFIG_TARGET_airoha_an7581=y'    
 has   "[A] 选中机型的 DEVICE_PACKAGES 保留" 'CONFIG_TARGET_DEVICE_PACKAGES_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi="kmod-usb3"' "$C"
 hasnt "[A] 别的机型的 DEVICE_PACKAGES 被丢" 'CONFIG_TARGET_DEVICE_PACKAGES_airoha_an7581_DEVICE_fiberhome_hg5382a' "$C"
 has   "[A] 底稿的 =m 压过源码补充"      'CONFIG_PACKAGE_kmod-airoha-en7572=m'                       "$C"
-has   "[A] 源码补充压过模板要求"        '# CONFIG_PACKAGE_kmod-phy-maxlinear is not set'            "$C"
-hasnt "[A] 模板要的包没被抬成 =y"       'CONFIG_PACKAGE_kmod-phy-maxlinear=y'                       "$C"
+# 源码补充（configs/*.config）里的 is not set 是发行版默认，不是用户的决定：
+# 机型声明的驱动照样补成 =y，不然固件里少一层驱动、编译还不报错
+has   "[A] 源码补充关的驱动仍补成 =y"    'CONFIG_PACKAGE_kmod-phy-maxlinear=y'                       "$C"
+inlog "[A] 说明驱动来自源码补充"         '源码补充（configs/*.config）里是 is not set'                "$L"
+inlog "[A] 应用按底稿保持关闭"           '机型声明的应用在底稿里被明确关闭（T0）'                    "$L"
 has   "[A] 源码补充的包保留"            'CONFIG_PACKAGE_kmod-airoha-xpon=y'                         "$C"
 has   "[A] 底稿内核选项压过源码补充"    '# CONFIG_KERNEL_DEBUG_INFO is not set'                     "$C"
-has   "[A] T0 关闭的驱动保持关闭"       '# CONFIG_PACKAGE_kmod-phy-maxlinear is not set'            "$C"
-hasnt "[A] T0 关闭的驱动没被补成 =y"    'CONFIG_PACKAGE_kmod-phy-maxlinear=y'                       "$C"
 has   "[A] 机型声明、配置里没有的包照补" 'CONFIG_PACKAGE_kmod-usb3=y'                                "$C"
-inlog "[A] 构建说明里点出 T0 关闭的驱动" 'T0 明确关闭的驱动'                                        "$L"
-inlog "[A] T0 关闭给了告警"             '::warning::T0'                                            "$L"
 inlog "[A] 说明里写了分级摘要"           '分级写入'                                                 "$L"
 inlog "[A] 说明里点出机型不一致"         '模板机型 fiberhome_hg5382a 与底稿机型 nokia_xg-040g-md-ubi 不一致' "$L"
 inlog "[A] 模板插件被压掉单独告警"       '::warning::模板里勾选的插件被配置压成关闭或 =m'            "$L"
@@ -184,6 +184,40 @@ has   "[C] 机型回落到模板"          'CONFIG_TARGET_airoha_an7581_DEVICE_f
 notinlog "[C] 没把 ROOTFS 当机型"   'ROOTFS'                                                "$L"
 notinlog "[C] 不误报机型不一致"     '不一致'                                                "$L"
 hasnt "[C] 单选时不输出 PER_DEVICE_ROOTFS" 'CONFIG_TARGET_PER_DEVICE_ROOTFS=y'              "$C"
+
+# ===========================================================================
+# D. 底稿里明确关掉机型声明的驱动（来源 user）→ 保持关闭 + 告警，不硬补
+#    同一个包在源码补充里也是 is not set，但底稿优先级更高，必须记成 user
+# ===========================================================================
+cat > "$W/snapD" <<'EOF'
+CONFIG_TARGET_airoha=y
+CONFIG_TARGET_airoha_an7581=y
+CONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y
+# CONFIG_PACKAGE_kmod-phy-maxlinear is not set
+EOF
+run_case D nokia_xg-040g-md-ubi "$W/snapD"
+C="$W/D.config"; L="$W/D.log"
+
+has    "[D] 底稿关的驱动保持关闭"   '# CONFIG_PACKAGE_kmod-phy-maxlinear is not set' "$C"
+hasnt  "[D] 没硬补成 =y"            'CONFIG_PACKAGE_kmod-phy-maxlinear=y'            "$C"
+inlog  "[D] 点出是底稿关的（T0）"   '机型声明的驱动在底稿里被明确关闭（T0）'          "$L"
+inlog  "[D] 给了告警"               '::warning::T0 明确关闭的驱动'                    "$L"
+
+# ===========================================================================
+# E. 底稿没提、源码补充关掉机型声明的应用（来源 seed）→ 保持关闭，但要说清不是用户关的
+# ===========================================================================
+cat > "$W/snapE" <<'EOF'
+CONFIG_TARGET_airoha=y
+CONFIG_TARGET_airoha_an7581=y
+CONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y
+CONFIG_PACKAGE_luci-base=y
+EOF
+run_case E nokia_xg-040g-md-ubi "$W/snapE"
+C="$W/E.config"; L="$W/E.log"
+
+has    "[E] 源码补充关的应用保持关闭" '# CONFIG_PACKAGE_luci-app-argon is not set' "$C"
+inlog  "[E] 说明是发行版默认"          '机型声明的应用在源码补充里是 is not set'    "$L"
+notinlog "[E] 没说成「底稿明确关闭」"  '应用在底稿里被明确关闭'                    "$L"
 
 echo
 echo "write-dotconfig: $pass 通过, $fail 失败"

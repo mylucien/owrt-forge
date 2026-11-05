@@ -85,7 +85,7 @@ check   "2 模板独有的 e 保留"        'CONFIG_PACKAGE_e=y'            "$TM
 check   "2 源码补充的 d 保留"        'CONFIG_PACKAGE_d=y'            "$TMP/o2"
 check   "2 EP 回落到模板机型"        'EP=generic'                    "$TMP/r2"
 check   "2 无底稿时机型来自模板"      'CONFIG_TARGET_x86_64_DEVICE_generic=y' "$TMP/o2"
-check   "2 明确关闭算 T0 并报出来"    'NOTE T0 明确关闭：1 个包在合并结果里是 is not set，后面的补包不会打开它们' "$TMP/r2"
+check   "2 源码补充关的包单独说明"    'NOTE 源码补充自带关闭 1 个包（发行版默认，不是你的选择；机型声明的驱动仍会补成 =y）' "$TMP/r2"
 check   "2 模板插件被压成关闭会点名"  'TPL_ITEM a（模板选了，源码补充 改成关闭）' "$TMP/r2"
 check   "2 模板插件数统计"            'TPL_DOWN=1' "$TMP/r2"
 
@@ -157,6 +157,51 @@ python3 "$MERGE" --target x86/64 --profile generic \
   --snapshot "$TMP/s6" --seed /dev/null --template "$TMP/t6" --out "$TMP/o6" > "$TMP/r6" || bad "场景6 合并失败"
 check   "6 单选写法下不开 MULTI_PROFILE" 'EP=generic' "$TMP/r6"
 nocheck "6 输出里没有 MULTI_PROFILE"     'CONFIG_TARGET_MULTI_PROFILE=y' "$TMP/o6"
+
+# ---------------------------------------------------------------------------
+# 场景 7：--emit-off 要把「谁关的」分开写出去（底稿 = user，源码补充 = seed）
+#   device-packages.sh 靠这个决定：底稿关的驱动保持关闭，源码补充关的驱动仍补 =y
+# ---------------------------------------------------------------------------
+cat > "$TMP/s7" <<'EOF'
+CONFIG_TARGET_airoha=y
+CONFIG_TARGET_airoha_an7581=y
+CONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y
+# CONFIG_PACKAGE_luci-app-foo is not set
+EOF
+printf '# CONFIG_PACKAGE_kmod-usb-serial is not set\n' > "$TMP/e7"
+python3 "$MERGE" --target airoha/an7581 --profile nokia_xg-040g-md-ubi \
+  --snapshot "$TMP/s7" --seed "$TMP/e7" --template /dev/null --out "$TMP/o7" \
+  --emit-off "$TMP/off7" > "$TMP/r7" || bad "场景7 合并失败"
+check   "7 底稿关的包记为 user"     'user luci-app-foo'      "$TMP/off7"
+check   "7 源码补充关的包记为 seed" 'seed kmod-usb-serial'   "$TMP/off7"
+nocheck "7 没把底稿的记成 seed"     'seed luci-app-foo'      "$TMP/off7"
+check   "7 报告里分开计数"          'NOTE T0 明确关闭：底稿关了 1 个包，后面的补包不会打开它们' "$TMP/r7"
+
+# ---------------------------------------------------------------------------
+# 场景 8：底稿带 BOM / 行尾空格（Windows 记事本、手工改过的文件）
+#   以前第一行解析不出来，机型行正好在开头 → 静默回落到模板机型
+# ---------------------------------------------------------------------------
+printf '\xef\xbb\xbfCONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y\r\nCONFIG_TARGET_airoha=y\r\nCONFIG_TARGET_airoha_an7581=y\r\nCONFIG_PACKAGE_kmod-x=y \r\n' > "$TMP/s8"
+printf 'CONFIG_TARGET_airoha_an7581_DEVICE_fiberhome_hg5382a=y\n' > "$TMP/t8"
+python3 "$MERGE" --target airoha/an7581 --profile fiberhome_hg5382a \
+  --snapshot "$TMP/s8" --seed /dev/null --template "$TMP/t8" --out "$TMP/o8" > "$TMP/r8" || bad "场景8 合并失败"
+check   "8 BOM 不影响机型识别"      'EP=nokia_xg-040g-md-ubi'  "$TMP/r8"
+check   "8 机型来自底稿"            'CONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y' "$TMP/o8"
+nocheck "8 没有回落到模板机型"      'DEVICE_fiberhome_hg5382a=y' "$TMP/o8"
+check   "8 行尾空格的 =y 仍生效"    'CONFIG_PACKAGE_kmod-x=y'  "$TMP/o8"
+
+# ---------------------------------------------------------------------------
+# 场景 9：覆盖明细只列真被改掉的；其它 target 的机型行要提示丢弃
+# ---------------------------------------------------------------------------
+printf 'CONFIG_TARGET_airoha=y\nCONFIG_TARGET_airoha_an7581=y\nCONFIG_TARGET_airoha_an7581_DEVICE_nokia_xg-040g-md-ubi=y\nCONFIG_PACKAGE_a=y\nCONFIG_PACKAGE_b=y\n' > "$TMP/s9"
+printf 'CONFIG_PACKAGE_a=y\nCONFIG_TARGET_airoha_an7583_DEVICE_fiberhome_hg5382a=y\n' > "$TMP/e9"
+printf 'CONFIG_PACKAGE_a=n\nCONFIG_PACKAGE_b=n\n' > "$TMP/t9"
+python3 "$MERGE" --target airoha/an7581 --profile nokia_xg-040g-md-ubi \
+  --snapshot "$TMP/s9" --seed "$TMP/e9" --template "$TMP/t9" --out "$TMP/o9" > "$TMP/r9" || bad "场景9 合并失败"
+check   "9 同值覆盖不占明细名额"    'NOTE · 包：PACKAGE_b 取 y（底稿=y，压掉 模板=n）' "$TMP/r9"
+nocheck "9 同值覆盖不写进明细"      '压掉 源码补充=y' "$TMP/r9"
+contains "9 提示丢弃了别的子目标的机型行" '已丢弃不属于本次 target 的机型行' "$TMP/r9"
+contains "9 点名是哪一行"           'TARGET_airoha_an7583_DEVICE_fiberhome_hg5382a' "$TMP/r9"
 
 echo
 echo "config-merge: $pass 通过, $fail 失败"

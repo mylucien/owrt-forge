@@ -72,8 +72,14 @@ seed_strip() {
 # 不叠加任何旧配置：源码默认配置 + 模板里的机型和插件清单就是唯一来源
 rm -f .config
 
+: > /tmp/cfg-off
 if [ ${#SEEDS[@]} -gt 0 ]; then
-  cat "${SEEDS[@]}" | seed_strip >> .config || true
+  cat "${SEEDS[@]}" | seed_strip > /tmp/seed-merged || true
+  # 告诉 device-packages.sh「这些 is not set 是源码补充（发行版默认）写的」，
+  # 与 write-dotconfig.sh 那条路同一个口径：发行版默认关掉的应用保持关闭，
+  # 机型声明的驱动仍然补成 =y。没有这个文件时会退回「一律当 T0」的老口径。
+  sed -n 's/^# CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\) is not set$/seed \1/p' /tmp/seed-merged >> /tmp/cfg-off
+  cat /tmp/seed-merged >> .config
   note "已合并源码默认配置：${SEEDS[*]}"
 else
   echo "源码仓库没有匹配的 configs/*.config，只用机型默认配置"

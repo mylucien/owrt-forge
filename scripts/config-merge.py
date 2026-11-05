@@ -15,6 +15,11 @@
                    DEVICE_PACKAGES）不会再把它们打开，驱动也不例外。合并阶段仍按
                    来源优先级取值 —— 底稿写了 =y、源码补充写了 is not set，是底稿赢；
                    赢下来的那个值如果是「关闭」，它就是 T0，谁也不能再翻。
+                   但「谁说的关闭」要分开：底稿是写配置的人的决定（=user，真 T0）；
+                   源码补充（configs/*.config）是整份发行版配置，里面成千上万个
+                   is not set 只是发行版默认（=seed），机型声明的驱动仍要补成 =y，
+                   否则又回到「固件里少一层驱动、编译却不报错」。两者通过
+                   --emit-off 交给调用方（write-dotconfig.sh → device-packages.sh）。
 
   L1 平台/子目标   CONFIG_TARGET_<m>=y、CONFIG_TARGET_<m>_<s>=y
                    只认本次任务的 target；其它平台的行一律丢弃。
@@ -35,8 +40,10 @@
 用法：
   config-merge.py --target airoha/an7581 --profile fiberhome_hg5382a \
                   --snapshot /tmp/dotconfig.snapshot --seed /tmp/cfg-seed \
-                  --template /tmp/cfg-template --out openwrt/.config
+                  --template /tmp/cfg-template --out openwrt/.config \
+                  [--emit-off /tmp/cfg-off]
 报告打到 stdout（`NOTE ` 开头的中文说明 + `EP=` 生效机型），由调用方写进构建说明。
+--emit-off 写出的每行是 `<user|seed> <包名>`：合并结果里被明确关闭的包，以及是谁关的。
 """
 
 import argparse
@@ -62,13 +69,15 @@ def read_symbols(path):
     """读一个配置文件，返回 [(key, value)]：`# CONFIG_X is not set` 记为 ('CONFIG_X', 'n')。
 
     只取符号行，注释与空行丢掉（defconfig 之后本来也会重写）。
+    用 utf-8-sig 读：Windows 记事本存的底稿带 BOM，否则第一行会被悄悄丢掉（机型行正好
+    常在开头，结果是静默换成模板的机型）；行尾空白一并去掉，免得 `CONFIG_X=y ` 判不出来。
     """
     res = []
     if not path or not os.path.isfile(path):
         return res
-    with open(path, encoding='utf-8', errors='replace') as fh:
+    with open(path, encoding='utf-8-sig', errors='replace') as fh:
         for raw in fh:
-            line = raw.rstrip('\r\n')
+            line = raw.rstrip()
             m = SYM_RE.match(line)
             if m:
                 res.append((m.group(1), m.group(2)))
@@ -147,6 +156,26 @@ def device_keys(syms, plat, subm):
     return out
 
 
+def foreign_device_rows(syms, plat, subm):
+    """名字像机型行、却不属于本次 target 的（别的平台、别的子目标）。
+
+    这些行按级别被丢掉是对的（留着会把选中的机型清掉），但要告诉用户一声：
+    底稿是从别的平台存下来的时候，用户只会看到「机型没生效」，看不出是这一行的问题。
+    """
+    out = []
+    for key, val in syms:
+        if val != 'y' or key in MULTI_SWITCHES:
+            continue
+        if key.startswith('CONFIG_TARGET_DEVICE_PACKAGES_'):
+            continue
+        if level_of(key, plat, subm) != L2_DEVICE:
+            continue
+        if device_id(key, plat, subm):
+            continue
+        out.append(key)
+    return out
+
+
 def render(key, val):
     return '# %s is not set' % key if val == UNSET else '%s=%s' % (key, val)
 
@@ -159,6 +188,8 @@ def main():
     ap.add_argument('--seed', default='', help='源码补充配置（可空）')
     ap.add_argument('--template', default='', help='模板生成的机型/插件行（可空）')
     ap.add_argument('--out', required=True)
+    ap.add_argument('--emit-off', default='',
+                    help='写出合并结果里被明确关闭的包：每行 `user <包>`（底稿）或 `seed <包>`（源码补充）')
     a = ap.parse_args()
 
     if '/' in a.target:
@@ -244,6 +275,20 @@ def main():
     with open(a.out, 'w', encoding='utf-8', newline='\n') as fh:
         fh.write('\n'.join(out) + '\n')
 
+    # 明确关闭的包要连同「谁关的」一起交出去：底稿 = 用户的决定，源码补充 = 发行版默认。
+    # 后面 device-packages.sh 靠它决定补不补机型声明的包（源码补充关掉的驱动仍要补 =y）。
+    off_user, off_seed = [], []
+    for key, (prio, val, src, _o) in sorted(best.items()):
+        if val != UNSET or level_of(key, plat, subm) != L4_PACKAGE:
+            continue
+        (off_user if src == '底稿' else off_seed).append(key[len('CONFIG_PACKAGE_'):])
+    if a.emit_off:
+        with open(a.emit_off, 'w', encoding='utf-8', newline='\n') as fh:
+            for p in off_user:
+                fh.write('user %s\n' % p)
+            for p in off_seed:
+                fh.write('seed %s\n' % p)
+
     # ---------------- 报告 ----------------
     print('EP=%s' % ep)
     print('NOTE 配置合并：平台 %s；机型 %s（%s）' %
@@ -253,11 +298,11 @@ def main():
               '不按 %s 校验/补包' % (a.profile, ', '.join(dev_ids), dev_ids[0], a.profile))
     print('NOTE 分级写入：%s' % '、'.join(
         '%s %d' % (LEVEL_NAME[lv], counts[lv]) for lv in (1, 2, 3, 4, 5)))
-    off_pkgs = [k for k in best
-                if best[k][1] == UNSET and level_of(k, plat, subm) == L4_PACKAGE]
-    if off_pkgs:
-        print('NOTE T0 明确关闭：%d 个包在合并结果里是 is not set，后面的补包不会打开它们' %
-              len(off_pkgs))
+    if off_user:
+        print('NOTE T0 明确关闭：底稿关了 %d 个包，后面的补包不会打开它们' % len(off_user))
+    if off_seed:
+        print('NOTE 源码补充自带关闭 %d 个包（发行版默认，不是你的选择；机型声明的驱动仍会补成 =y）' %
+              len(off_seed))
     for n in notes:
         print('NOTE %s' % n)
 
@@ -265,7 +310,9 @@ def main():
     for key, (prio, val, src, others) in sorted(best.items()):
         if not others:
             continue
-        lost = sorted({(p, s, v) for p, v, s in others if p > prio})
+        # 只有取值真的不同才算「压掉」。底稿和源码补充都写 =y 的包满地都是（整份底稿几千行），
+        # 以前它们会把 6 个示例名额占满，真正被改掉的那几行反而看不到。
+        lost = sorted({(p, s, v) for p, v, s in others if p > prio and v != val})
         if not lost:
             continue
         lv = level_of(key, plat, subm)
@@ -303,7 +350,16 @@ def main():
                     and k not in ('CONFIG_TARGET_%s' % plat,
                                   'CONFIG_TARGET_%s_%s' % (plat, subm))})
     if alien:
-        print('NOTE 已丢弃其它平台的行：%s' % '、'.join(k.replace('CONFIG_', '', 1) for k in alien))
+        names = [k.replace('CONFIG_', '', 1) for k in alien]
+        print('NOTE 已丢弃其它平台的行 %d 项：%s%s' %
+              (len(names), '、'.join(names[:5]), ' 等' if len(names) > 5 else ''))
+    fo = sorted(set(foreign_device_rows(snap, plat, subm))
+                | set(foreign_device_rows(seed, plat, subm))
+                | set(foreign_device_rows(tpl, plat, subm)))
+    if fo:
+        names = [k.replace('CONFIG_', '', 1) for k in fo]
+        print('NOTE 已丢弃不属于本次 target 的机型行 %d 项：%s%s' %
+              (len(names), '、'.join(names[:5]), ' 等' if len(names) > 5 else ''))
 
     return 0
 

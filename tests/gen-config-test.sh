@@ -51,6 +51,7 @@ CONFIG_TARGET_MULTI_PROFILE=y
 CONFIG_TARGET_PER_DEVICE_ROOTFS=y
 CONFIG_TARGET_DEVICE_airoha_an7581_DEVICE_airoha_an7581-evb=y
 CONFIG_PACKAGE_wpad-basic-mbedtls=y
+# CONFIG_PACKAGE_kmod-usb3 is not set
 # CONFIG_PACKAGE_luci-app-argon is not set
 EOF
 cat > "$W/app/openwrt/configs/release.config" <<'EOF'
@@ -88,12 +89,13 @@ hasnt "其它机型的 DEVICE_ 行被剥掉"   'CONFIG_TARGET_DEVICE_airoha_an75
 has   "源码里的发行版包保留"          'CONFIG_PACKAGE_wpad-basic-mbedtls=y'
 has   "机型声明的驱动被补成 =y"        'CONFIG_PACKAGE_kmod-phy-maxlinear=y'
 has   "机型声明的包被补成 =y"          'CONFIG_PACKAGE_kmod-usb3=y'
-has   "T0 明确关闭的包保持关闭"        '# CONFIG_PACKAGE_luci-app-argon is not set'
-hasnt "T0 关闭的包没被补成 =y"         'CONFIG_PACKAGE_luci-app-argon=y'
+has   "源码补充关的应用保持关闭"      '# CONFIG_PACKAGE_luci-app-argon is not set'
+hasnt "没把应用硬补成 =y"             'CONFIG_PACKAGE_luci-app-argon=y'
+inlog "驱动来自源码补充也照补"          '机型声明的驱动在源码补充（configs/*.config）里是 is not set'
 has   "-变体里的包被排除"              'CONFIG_TARGET_airoha_an7581=y'
 hasnt "-变体里的包被当成要装的"        'CONFIG_PACKAGE_kmod-dropped=y'
 inlog "说明里点出补了哪些包"            '声明、配置里却没有的包'
-inlog "说明里点出 T0 关闭的应用"        '保持关闭'
+inlog "说明里点出应用是发行版默认关的"  '机型声明的应用在源码补充里是 is not set'
 
 echo
 echo "gen-config: $pass 通过, $fail 失败"

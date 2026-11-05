@@ -17,7 +17,11 @@
 # 规则（两份脚本以前各抄一份，改一处忘另一处 —— 现在只留这一份）：
 #   · 以 tmp/.targetinfo 里机型自己声明的包为准（make 展开后的最终列表，已算过 += / -变体）
 #   · 缺的补成 =y 再 defconfig，最多两轮（补上的包会再拉起依赖）
-#   · 配置里明确写了 "# ... is not set" 的是 T0：不再打开它，驱动也一样，只告警
+#   · 配置里写了 "# ... is not set" 的，先看是「谁写的」（config-merge.py --emit-off）：
+#       user = 底稿写的   → T0，不再打开，驱动也一样，只告警
+#       seed = 源码补充写的 → 那是整份发行版配置里的默认值（动辄几千行 is not set），
+#                             应用保持关闭，**机型声明的驱动仍补成 =y**（补不上会失败）
+#     分不清来源（没固定底稿 / 没 python3）时退回老口径：一律当 T0
 #   · 已被同类包顶替的（wpad-openssl 换成 wpad-basic 之类）按 Provides 判断，不重复装
 #   · 驱动最后仍然没进配置 → 返回 1（设备缺驱动起不来，不能当成功）
 #
@@ -66,13 +70,28 @@ _edp_profile_pkgs() {
 
 enforce_device_packages() {
   local dev="${1:-}"
-  local -A DECL=()
-  local t p o add skip off drv other round
-  local skip_all="" off_all=""
+  local -A DECL=() KEEP=() ORIG=()
+  local t p add skip round why sub cfg_off_ready
+  local skip_all="" off_user="" seed_drv="" seed_app="" auto_app=""
+  local where="配置里"
 
   [ -n "$dev" ] || return 0
   [ -f .config ] || return 0
   [ -f tmp/.targetinfo ] || return 0
+
+  # 「谁说的关闭」——config-merge.py --emit-off 的输出，每行 `<user|seed> <包名>`：
+  #   user  底稿里明确写了 is not set：写配置的人的决定（T0），驱动也不打开
+  #   seed  源码补充（configs/*.config）里的 is not set：整份发行版配置，几千行 is not set
+  #         只是"发行版没编这些包"，不是你的选择，机型声明的驱动仍要补
+  # 没有这个文件（不固定底稿 / 没有 python3）时退回老口径：配置里的 is not set 一律当 T0。
+  cfg_off_ready=0
+  if [ -s /tmp/cfg-off ]; then
+    cfg_off_ready=1
+    where="底稿里"
+    while read -r why p; do
+      [ -n "$p" ] && ORIG["$p"]="$why"
+    done < /tmp/cfg-off
+  fi
 
   # 按 Makefile 里 + / - 的写法算出机型的最终包集合
   for t in $(_edp_profile_pkgs "$dev"); do
@@ -86,21 +105,30 @@ enforce_device_packages() {
   [ ${#DECL[@]} -gt 0 ] || return 0
   _edp_enabled_provides_map > /tmp/enabled-provides
 
-  skip_all=""; off_all=""
+  skip_all=""
   for round in 1 2; do
-    add=""; skip=""; off=""
+    add=""; skip=""
     for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
       grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
-      if o=$(_edp_substituted_by "$p"); then skip="$skip $p→$o"; continue; fi
-      # T0：合并结果里明确写了 "# ... is not set" 的，是最高一级 —— 后面的补包不再把它
-      # 打开，驱动也不例外。这是配置里最硬的意图，硬补成 =y 等于把别人的决定改回去。
+      if sub=$(_edp_substituted_by "$p"); then skip="$skip $p→$sub"; continue; fi
       if grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config; then
-        off="$off $p"; continue
+        why="${ORIG[$p]:-}"
+        # 底稿明确关闭（或分不清来源）= T0：保持关闭，连驱动也不打开
+        if [ "$cfg_off_ready" = 0 ] || [ "$why" = user ]; then
+          KEEP["$p"]=1; off_user="$off_user $p"; continue
+        fi
+        if _edp_is_driver "$p"; then
+          # 源码补充里的 is not set 不是用户的选择，驱动照补；补不上会在最后直接报错
+          [ "$why" = seed ] && seed_drv="$seed_drv $p"
+          add="$add $p"; continue
+        fi
+        KEEP["$p"]=1
+        if [ "$why" = seed ]; then seed_app="$seed_app $p"; else auto_app="$auto_app $p"; fi
+        continue
       fi
       add="$add $p"
     done
     [ -n "${skip// /}" ] && skip_all="$skip_all $skip"
-    [ -n "${off// /}" ] && off_all="$off_all $off"
     [ -n "${add// /}" ] || break
     for p in $add; do printf 'CONFIG_PACKAGE_%s=y\n' "$p" >> .config; done
     note "机型 $dev 声明、配置里却没有的包：${add# } → 补成 =y 后重新 defconfig"
@@ -112,32 +140,43 @@ enforce_device_packages() {
   if [ -n "${skip_all// /}" ]; then
     note "机型声明的包已有同类替代，按配置里的选择保留：$(printf '%s\n' $skip_all | sort -u | paste -sd' ')"
   fi
-  if [ -n "${off_all// /}" ]; then
-    local off_app="" off_drv=""
-    for p in $(printf '%s\n' $off_all | sort -u); do
-      if _edp_is_driver "$p"; then off_drv="$off_drv $p"; else off_app="$off_app $p"; fi
-    done
-    if [ -n "${off_app// /}" ]; then
-      note "机型声明的应用在配置里被明确关闭（T0），保持关闭：${off_app# }"
-    fi
-    if [ -n "${off_drv// /}" ]; then
-      # 驱动被明确关掉是有代价的（设备可能起不来），但 T0 就是 T0：只提示，不擅自打开
-      note "机型声明的驱动在配置里被明确关闭（T0），按你的选择保持关闭：${off_drv# } —— 固件里不会有这些驱动"
-      echo "::warning::T0 明确关闭的驱动：${off_drv# }（机型声明里有，但配置写死了 is not set）"
-    fi
+  # T0：底稿里明确关闭的（分不清来源时 off_user 里是全部 is not set，与老口径一致）
+  local uo_app="" uo_drv=""
+  for p in $(printf '%s\n' $off_user | sort -u); do
+    if _edp_is_driver "$p"; then uo_drv="$uo_drv $p"; else uo_app="$uo_app $p"; fi
+  done
+  if [ -n "${uo_app// /}" ]; then
+    note "机型声明的应用在${where}被明确关闭（T0），保持关闭：${uo_app# }"
+  fi
+  if [ -n "${uo_drv// /}" ]; then
+    # 驱动被明确关掉是有代价的（设备可能起不来），但 T0 就是 T0：只提示，不擅自打开
+    note "机型声明的驱动在${where}被明确关闭（T0），按你的选择保持关闭：${uo_drv# } —— 固件里不会有这些驱动"
+    echo "::warning::T0 明确关闭的驱动：${uo_drv# }（机型声明里有，但${where}写死了 is not set）"
+  fi
+  # 源码补充关掉的：应用按发行版默认保留关闭，驱动已经补过一轮 —— 都要说清楚，
+  # 别再像以前那样把"defconfig 兜出来的 is not set"说成"你明确关闭"。
+  if [ -n "${seed_drv// /}" ]; then
+    note "机型声明的驱动在源码补充（configs/*.config）里是 is not set —— 那是发行版默认，不是你的选择，已按机型声明补成 =y：$(printf '%s\n' $seed_drv | sort -u | paste -sd' ' -)"
+  fi
+  if [ -n "${seed_app// /}" ]; then
+    note "机型声明的应用在源码补充里是 is not set（发行版默认，不是你的选择），保持关闭：$(printf '%s\n' $seed_app | sort -u | paste -sd' ' -)。需要它就在模板里勾选，或改源码里的 configs/*.config"
+  fi
+  if [ -n "${auto_app// /}" ]; then
+    note "机型声明的应用 defconfig 后仍是 is not set（依赖不满足或被别的包顶掉），没有补：$(printf '%s\n' $auto_app | sort -u | paste -sd' ' -)"
   fi
 
-  drv=""; other=""
+  local drv="" other=""
   for p in $(printf '%s\n' "${!DECL[@]}" | sort); do
     grep -q "^CONFIG_PACKAGE_${p}=y$" .config && continue
     _edp_substituted_by "$p" > /dev/null && continue
-    grep -q "^# CONFIG_PACKAGE_${p} is not set$" .config && continue
+    [ -n "${KEEP[$p]:-}" ] && continue
     if _edp_is_driver "$p"; then drv="$drv $p"; else other="$other $p"; fi
   done
   if [ -n "${drv// /}" ]; then
     { echo "机型 $dev 声明的驱动没能生效：${drv# }"
       echo "这些包在配置里是 =m 或 n（=m 只编 ipk，不会装进固件），或者依赖不满足。"
       echo "把对应的行删掉或改成 =y 再编译；确实不需要，就改 target/linux/.../image 里这个机型的 DEVICE_PACKAGES。"
+      echo "源码补充（configs/*.config）里的 is not set 不算你的选择，已经试着补过一轮；仍起不来说明依赖不满足。"
     } > /tmp/config-error
     echo "::error::$(head -n1 /tmp/config-error)"
     cat /tmp/config-error

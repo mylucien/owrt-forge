@@ -80,9 +80,14 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
 
   # ---- 来源一：底稿，最高优先级 ----
   report=/tmp/cfg-merge.log
+  # 「合并结果里被明确关闭的包 + 是谁关的」交给 device-packages.sh：底稿关的（user）是
+  # 你的决定，源码补充关的（seed）只是发行版默认，机型声明的驱动还得补。先清空，免得
+  # 上一轮的残留被当真。
+  : > /tmp/cfg-off
   if command -v python3 >/dev/null 2>&1; then
     if ! python3 "$SCRIPTS_DIR/config-merge.py" --target "$T" --profile "$P" \
-         --snapshot "$SNAP" --seed "$SEED" --template "$TPL" --out openwrt/.config > "$report"; then
+         --snapshot "$SNAP" --seed "$SEED" --template "$TPL" --out openwrt/.config \
+         --emit-off /tmp/cfg-off > "$report"; then
       echo "::error::分级合并配置失败"
       cat "$report"
       exit 1
@@ -147,6 +152,11 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
   # 注意口径 —— 源码补充是参与合并的（不是"底稿没带上就丢"），所以这里列出来的
   # 基本都是「按级别该是 =y，但 defconfig 没让它是 =y」：依赖不满足、平台条件不成立，
   # 或者被人为写成 =m（只编 ipk）。不要再写成"底稿不完整"。
+  #
+  # 「明确关闭」只认有来源的（底稿 user / 源码补充 seed，见 /tmp/cfg-off）。
+  # 别再按 .config 里有没有 "# ... is not set" 来判：defconfig 会把所有可见但没开的包
+  # 都写成这一行（an7581 上就有 6000 多条），按它算等于把所有"依赖不满足被顶掉"的包
+  # 都算成"你明确关闭"，LOST 永远报不出来。
   if [ -s "$SEED" ]; then
     pkg_state() {
       if grep -qx "CONFIG_PACKAGE_${1}=y" openwrt/.config; then echo y
@@ -154,26 +164,40 @@ if [ "$HAS_DOTCONFIG" = "true" ]; then
       elif grep -qx "# CONFIG_PACKAGE_${1} is not set" openwrt/.config; then echo off
       else echo missing; fi
     }
+    declare -A AUD_USER=() AUD_SEED=()
+    if [ -s /tmp/cfg-off ]; then
+      while read -r origin pkg; do
+        case "$origin" in
+          user) AUD_USER["$pkg"]=1 ;;
+          seed) AUD_SEED["$pkg"]=1 ;;
+        esac
+      done < /tmp/cfg-off
+    fi
     LOST=""; OFFC=0; MODC=0
     for p in $(sed -n 's/^CONFIG_PACKAGE_\([A-Za-z0-9_.+-]*\)=y$/\1/p' "$SEED" | sort -u); do
-      case "$(pkg_state "$p")" in
-        y) ;;
-        off) OFFC=$((OFFC + 1)) ;;
-        m) MODC=$((MODC + 1)); LOST="$LOST $p" ;;
-        *) LOST="$LOST $p" ;;
-      esac
+      st=$(pkg_state "$p")
+      [ "$st" = y ] && continue
+      if [ "$st" = m ]; then MODC=$((MODC + 1)); LOST="$LOST $p"; continue; fi
+      if [ -n "${AUD_USER[$p]:-}" ] || [ -n "${AUD_SEED[$p]:-}" ]; then
+        OFFC=$((OFFC + 1)); continue
+      fi
+      LOST="$LOST $p"
     done
     if [ "$OFFC" -gt 0 ]; then
-      note "其中 $OFFC 个包在配置里被明确关闭（T0），按配置保留关闭，不算缺失"
+      note "其中 $OFFC 个包在配置里被明确关闭（底稿的决定或源码补充的默认），按配置保持关闭，不算缺失"
     fi
     if [ -n "${LOST// /}" ]; then
+      LOSTN=$(printf '%s\n' $LOST | wc -l | tr -d ' ')
+      SHOWN=$(printf '%s\n' $LOST | head -n 8 | paste -sd' ' -)
+      MORE=""
+      if [ "$LOSTN" -gt 8 ]; then MORE=" …（另有 $((LOSTN - 8)) 个，见日志）"; fi
       {
-        echo "注意：源码默认启用、但最终没进固件的包（$MODC 个是 =m，只编 ipk 不装进固件）："
-        echo " ${LOST# }"
+        echo "注意：源码默认启用、但最终没进固件的包 $LOSTN 个（其中 $MODC 个是 =m，只编 ipk 不装进固件）："
+        echo " ${SHOWN}${MORE}"
         echo "源码补充是参与合并的，所以到这里还没有，原因通常是依赖不满足、被 defconfig 关掉，或该平台不支持；"
         echo "确认办法：看编译日志里 make defconfig 的 unmet dependencies 提示，或下面「插件没生效」那段诊断。"
       } >> /tmp/build-notes
-      echo "::warning::源码默认启用但没进固件的包：${LOST# }"
+      echo "::warning::源码默认启用但没进固件的包 ${LOSTN} 个：${SHOWN}${MORE}"
     fi
   fi
 elif [ "$NPKG" -gt 0 ] || [ -n "$P" ]; then
